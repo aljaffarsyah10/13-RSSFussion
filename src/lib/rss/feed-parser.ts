@@ -1,0 +1,158 @@
+import Parser from "rss-parser";
+import { validateFeedUrl } from "./ssrf-validator";
+import {
+  canonicalizeUrl,
+  stripHtml,
+  generateFallbackGuid,
+  extractImageUrl,
+} from "./article-normalizer";
+
+const parser = new Parser({
+  timeout: 15000,
+  headers: {
+    "User-Agent": "RSSFusionBot/1.0 (+https://github.com/rssfusion/rssfusion)",
+    Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+  },
+});
+
+export interface ParsedFeedItem {
+  guid?: string;
+  canonicalUrl: string;
+  originalUrl: string;
+  title: string;
+  description: string;
+  contentSnippet?: string;
+  author?: string;
+  imageUrl?: string;
+  publishedAt: string;
+}
+
+export interface ParseFeedResult {
+  title: string;
+  description?: string;
+  siteUrl?: string;
+  items: ParsedFeedItem[];
+  httpStatus: number;
+  etag?: string;
+  lastModified?: string;
+  notModified?: boolean;
+}
+
+export async function fetchAndParseFeed(
+  feedUrl: string,
+  sourceId: string,
+  options?: {
+    etag?: string;
+    lastModified?: string;
+  }
+): Promise<ParseFeedResult> {
+  // 1. SSRF Validation
+  const ssrfCheck = await validateFeedUrl(feedUrl);
+  if (!ssrfCheck.valid) {
+    throw new Error(`SSRF_BLOCKED: ${ssrfCheck.reason}`);
+  }
+
+  // 2. HTTP Request with conditional headers & timeout
+  const headers: Record<string, string> = {
+    "User-Agent": "RSSFusionBot/1.0 (+https://github.com/rssfusion/rssfusion)",
+    Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+  };
+
+  if (options?.etag) {
+    headers["If-None-Match"] = options.etag;
+  }
+  if (options?.lastModified) {
+    headers["If-Modified-Since"] = options.lastModified;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  let response: Response;
+  try {
+    response = await fetch(feedUrl, {
+      method: "GET",
+      headers,
+      signal: controller.signal,
+      redirect: "follow",
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  // Handle 304 Not Modified
+  if (response.status === 304) {
+    return {
+      title: "",
+      items: [],
+      httpStatus: 304,
+      notModified: true,
+      etag: options?.etag,
+      lastModified: options?.lastModified,
+    };
+  }
+
+  if (!response.ok) {
+    throw new Error(`HTTP_${response.status}: Failed to fetch feed (Status ${response.status})`);
+  }
+
+  const newEtag = response.headers.get("etag") || undefined;
+  const newLastModified = response.headers.get("last-modified") || undefined;
+
+  // Max 5MB body size protection
+  const xmlText = await response.text();
+  if (xmlText.length > 5 * 1024 * 1024) {
+    throw new Error("FEED_TOO_LARGE: Feed body exceeded 5MB limit");
+  }
+
+  // 3. Parse RSS / Atom XML
+  const feed = await parser.parseString(xmlText);
+
+  // 4. Normalize items
+  const nowIso = new Date().toISOString();
+  const normalizedItems: ParsedFeedItem[] = (feed.items || []).slice(0, 100).map((item) => {
+    const originalLink = item.link || item.guid || feedUrl;
+    const canonicalLink = canonicalizeUrl(originalLink);
+    const cleanTitle = stripHtml(item.title || "Untitled Article");
+    const rawContent = item["content:encoded"] || item.content || item.summary || "";
+    const cleanDescription = stripHtml(item.contentSnippet || item.summary || rawContent).slice(0, 1000);
+    const snippet = cleanDescription.slice(0, 300);
+
+    let pubDateIso = nowIso;
+    if (item.isoDate) {
+      pubDateIso = item.isoDate;
+    } else if (item.pubDate) {
+      try {
+        pubDateIso = new Date(item.pubDate).toISOString();
+      } catch {
+        pubDateIso = nowIso;
+      }
+    }
+
+    const guid = item.id || item.guid || generateFallbackGuid(sourceId, canonicalLink, cleanTitle, pubDateIso);
+    const enclosureUrl = item.enclosure?.url;
+    const imageUrl = extractImageUrl(rawContent, enclosureUrl);
+
+    return {
+      guid,
+      canonicalUrl: canonicalLink,
+      originalUrl: originalLink,
+      title: cleanTitle,
+      description: cleanDescription,
+      contentSnippet: snippet,
+      author: item.creator || item.author || undefined,
+      imageUrl,
+      publishedAt: pubDateIso,
+    };
+  });
+
+  return {
+    title: feed.title || "Untitled Feed",
+    description: feed.description,
+    siteUrl: feed.link,
+    items: normalizedItems,
+    httpStatus: response.status,
+    etag: newEtag,
+    lastModified: newLastModified,
+  };
+}
