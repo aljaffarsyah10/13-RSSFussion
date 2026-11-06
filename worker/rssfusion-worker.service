@@ -1,0 +1,24 @@
+[Unit]
+Description=RSSFusion RSS Ingestion Worker
+After=network.target
+
+[Service]
+Type=simple
+User=rssfusion
+Group=rssfusion
+WorkingDirectory=/opt/rssfusion/worker
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+EnvironmentFile=/opt/rssfusion/worker/.env
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
