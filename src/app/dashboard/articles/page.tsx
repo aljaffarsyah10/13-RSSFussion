@@ -3,71 +3,158 @@
 import * as React from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ErrorState } from "@/components/shared/error-state";
+import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ArticleCard } from "@/features/articles/components/article-card";
 import { ArticleFilters } from "@/features/articles/components/article-filters";
-import { initialMockArticles } from "@/features/articles/mocks/articles.mock";
-import { initialMockSources } from "@/features/sources/mocks/sources.mock";
-import { initialMockTopics } from "@/features/topics/mocks/topics.mock";
 import { Button } from "@/components/ui/button";
+import { articlesApi, sourcesApi, topicsApi } from "@/lib/api/client";
+import { Article, RssSource, Topic } from "@/types/models";
 import { Newspaper, Loader2 } from "lucide-react";
 
 export default function ArticlesPage() {
-  const [articles, setArticles] = React.useState(initialMockArticles);
+  const [articles, setArticles] = React.useState<Article[]>([]);
+  const [sources, setSources] = React.useState<RssSource[]>([]);
+  const [topics, setTopics] = React.useState<Topic[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [debouncedQuery, setDebouncedQuery] = React.useState("");
   const [selectedSourceId, setSelectedSourceId] = React.useState("");
   const [selectedTopic, setSelectedTopic] = React.useState("");
-  const [visibleCount, setVisibleCount] = React.useState(4);
+  const [nextCursor, setNextCursor] = React.useState<string | null>(null);
+
+  const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [reloadToken, setReloadToken] = React.useState(0);
 
-  // Filter pipeline
-  const filteredArticles = React.useMemo(() => {
-    return articles.filter((article) => {
-      // 1. Search Query
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchesTitle = article.title.toLowerCase().includes(query);
-        const matchesSnippet = article.description.toLowerCase().includes(query);
-        const matchesKw = article.matchedKeywords?.some((kw) =>
-          kw.toLowerCase().includes(query)
-        );
-        if (!matchesTitle && !matchesSnippet && !matchesKw) return false;
-      }
+  // Debounce search query
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
-      // 2. Source filter
-      if (selectedSourceId && article.sourceId !== selectedSourceId) {
-        return false;
-      }
-
-      // 3. Topic filter
-      if (selectedTopic && !article.topics?.includes(selectedTopic)) {
-        return false;
-      }
-
-      return true;
+  // Load sources and topics once
+  React.useEffect(() => {
+    Promise.all([
+      sourcesApi.list().catch(() => []),
+      topicsApi.list().catch(() => []),
+    ]).then(([sList, tList]) => {
+      setSources(sList || []);
+      setTopics(tList || []);
     });
-  }, [articles, searchQuery, selectedSourceId, selectedTopic]);
+  }, []);
 
-  const displayedArticles = filteredArticles.slice(0, visibleCount);
-  const hasMore = visibleCount < filteredArticles.length;
+  // Fetch articles when filters change or reloadToken changes
+  React.useEffect(() => {
+    let cancelled = false;
 
-  const handleToggleSave = (articleId: string) => {
-    setArticles((prev) =>
-      prev.map((a) => (a.id === articleId ? { ...a, isSaved: !a.isSaved } : a))
-    );
+    async function load() {
+      try {
+        const res = await articlesApi.list({
+          q: debouncedQuery || undefined,
+          sourceId: selectedSourceId || undefined,
+          topicId: selectedTopic || undefined,
+          limit: 15,
+        });
+
+        if (!cancelled) {
+          const items = res?.data || (Array.isArray(res) ? (res as unknown as Article[]) : []);
+          setArticles(items);
+          setNextCursor(res?.nextCursor ?? null);
+          setError(null);
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : "Failed to load articles";
+          setError(msg);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, selectedSourceId, selectedTopic, reloadToken]);
+
+  const handleRetry = () => {
+    setIsLoading(true);
+    setReloadToken((prev) => prev + 1);
   };
 
-  const handleToggleRead = (articleId: string) => {
-    setArticles((prev) =>
-      prev.map((a) => (a.id === articleId ? { ...a, isRead: !a.isRead } : a))
-    );
-  };
-
-  const handleLoadMore = () => {
+  const handleLoadMore = async () => {
+    if (!nextCursor || isLoadingMore) return;
     setIsLoadingMore(true);
-    setTimeout(() => {
-      setVisibleCount((prev) => prev + 4);
+
+    try {
+      const res = await articlesApi.list({
+        q: debouncedQuery || undefined,
+        sourceId: selectedSourceId || undefined,
+        topicId: selectedTopic || undefined,
+        cursor: nextCursor,
+        limit: 15,
+      });
+
+      const newItems = res?.data || [];
+      setArticles((prev) => [...prev, ...newItems]);
+      setNextCursor(res?.nextCursor ?? null);
+    } catch (err: unknown) {
+      console.error("Failed to load more articles", err);
+    } finally {
       setIsLoadingMore(false);
-    }, 400);
+    }
+  };
+
+  const handleToggleSave = async (articleId: string) => {
+    const target = articles.find((a) => a.id === articleId);
+    if (!target) return;
+
+    const newSaved = !target.isSaved;
+
+    // Optimistic update
+    setArticles((prev) =>
+      prev.map((a) => (a.id === articleId ? { ...a, isSaved: newSaved } : a))
+    );
+
+    try {
+      if (newSaved) {
+        await articlesApi.save(articleId);
+      } else {
+        await articlesApi.unsave(articleId);
+      }
+    } catch {
+      // Revert on failure
+      setArticles((prev) =>
+        prev.map((a) => (a.id === articleId ? { ...a, isSaved: target.isSaved } : a))
+      );
+    }
+  };
+
+  const handleToggleRead = async (articleId: string) => {
+    const target = articles.find((a) => a.id === articleId);
+    if (!target) return;
+
+    const newRead = !target.isRead;
+
+    // Optimistic update
+    setArticles((prev) =>
+      prev.map((a) => (a.id === articleId ? { ...a, isRead: newRead } : a))
+    );
+
+    try {
+      await articlesApi.markRead(articleId);
+    } catch {
+      // Revert on failure
+      setArticles((prev) =>
+        prev.map((a) => (a.id === articleId ? { ...a, isRead: target.isRead } : a))
+      );
+    }
   };
 
   return (
@@ -80,32 +167,59 @@ export default function ArticlesPage() {
       {/* Filter toolbar */}
       <ArticleFilters
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={(q) => {
+          setIsLoading(true);
+          setSearchQuery(q);
+        }}
         selectedSourceId={selectedSourceId}
-        onSourceChange={setSelectedSourceId}
+        onSourceChange={(s) => {
+          setIsLoading(true);
+          setSelectedSourceId(s);
+        }}
         selectedTopic={selectedTopic}
-        onTopicChange={setSelectedTopic}
-        availableSources={initialMockSources.map((s) => ({ id: s.id, name: s.name }))}
-        availableTopics={initialMockTopics.map((t) => ({ id: t.id, name: t.name }))}
-        totalCount={filteredArticles.length}
+        onTopicChange={(t) => {
+          setIsLoading(true);
+          setSelectedTopic(t);
+        }}
+        availableSources={sources.map((s) => ({ id: s.id, name: s.name }))}
+        availableTopics={topics.map((t) => ({ id: t.id, name: t.name }))}
+        totalCount={articles.length}
       />
 
-      {/* Article List / Feed */}
-      {filteredArticles.length === 0 ? (
+      {/* Body state */}
+      {isLoading ? (
+        <LoadingSkeleton count={4} />
+      ) : error ? (
+        <ErrorState
+          title="Unable to load articles"
+          description={error}
+          onRetry={handleRetry}
+        />
+      ) : articles.length === 0 ? (
         <EmptyState
           icon={Newspaper}
           title="No articles match your filters"
-          description="Try broadening your search term or selecting a different source/topic filter."
-          actionLabel="Clear Filters"
-          onAction={() => {
-            setSearchQuery("");
-            setSelectedSourceId("");
-            setSelectedTopic("");
-          }}
+          description={
+            sources.length === 0
+              ? "Connect RSS sources first to begin populating your article intelligence stream."
+              : "Try broadening your search term or clearing the source/topic filters."
+          }
+          actionLabel={sources.length === 0 ? "Connect RSS Sources" : "Clear Filters"}
+          actionHref={sources.length === 0 ? "/dashboard/sources" : undefined}
+          onAction={
+            sources.length === 0
+              ? undefined
+              : () => {
+                  setIsLoading(true);
+                  setSearchQuery("");
+                  setSelectedSourceId("");
+                  setSelectedTopic("");
+                }
+          }
         />
       ) : (
         <div className="space-y-3">
-          {displayedArticles.map((article) => (
+          {articles.map((article) => (
             <ArticleCard
               key={article.id}
               article={article}
@@ -114,14 +228,14 @@ export default function ArticlesPage() {
             />
           ))}
 
-          {hasMore && (
+          {nextCursor && (
             <div className="pt-4 text-center">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleLoadMore}
                 disabled={isLoadingMore}
-                className="h-9 px-6 text-xs gap-1.5"
+                className="h-9 px-6 text-xs gap-1.5 cursor-pointer"
               >
                 {isLoadingMore && <Loader2 className="size-3.5 animate-spin" />}
                 <span>

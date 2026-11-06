@@ -175,9 +175,23 @@ export async function listSavedArticles(userId: string) {
 
   const rows = (data || []) as unknown as SavedArticleRow[];
 
-  return rows.map((row) => ({
-    ...row.articles,
-    sourceName: row.articles?.rss_sources?.name || "Feed",
-    isSaved: true,
-  }));
+  return rows
+    .filter((row) => Boolean(row.articles))
+    .map((row) => ({
+      id: row.articles.id,
+      sourceId: row.articles.source_id,
+      sourceName: row.articles.rss_sources?.name || "Feed",
+      canonicalUrl: row.articles.canonical_url,
+      originalUrl: row.articles.original_url,
+      title: row.articles.title,
+      description: row.articles.description,
+      contentSnippet: row.articles.content_snippet,
+      author: row.articles.author,
+      imageUrl: row.articles.image_url,
+      publishedAt: row.articles.published_at,
+      fetchedAt: row.articles.published_at,
+      createdAt: row.created_at,
+      isSaved: true,
+      isRead: false,
+    }));
 }

@@ -1,7 +1,30 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { checkTopicQuota } from "./quota.service";
+import { Topic } from "@/types/models";
 
-export async function listTopics(userId: string) {
+interface TopicDbRow {
+  id: string;
+  user_id: string;
+  name: string;
+  description?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  keywords?: Array<{ count: number }>;
+}
+
+function mapTopicRow(row: TopicDbRow): Topic {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    description: row.description || undefined,
+    keywordsCount: row.keywords?.[0]?.count ?? 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || undefined,
+  };
+}
+
+export async function listTopics(userId: string): Promise<Topic[]> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("topics")
@@ -10,13 +33,13 @@ export async function listTopics(userId: string) {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return ((data || []) as unknown as TopicDbRow[]).map(mapTopicRow);
 }
 
 export async function createTopic(
   userId: string,
   input: { name: string; description?: string }
-) {
+): Promise<Topic> {
   await checkTopicQuota(userId);
 
   const supabase = await createServerSupabaseClient();
@@ -37,14 +60,14 @@ export async function createTopic(
     throw error;
   }
 
-  return data;
+  return mapTopicRow(data as TopicDbRow);
 }
 
 export async function updateTopic(
   userId: string,
   topicId: string,
   updates: { name?: string; description?: string }
-) {
+): Promise<Topic> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("topics")
@@ -59,7 +82,7 @@ export async function updateTopic(
     .single();
 
   if (error) throw error;
-  return data;
+  return mapTopicRow(data as TopicDbRow);
 }
 
 export async function deleteTopic(userId: string, topicId: string) {

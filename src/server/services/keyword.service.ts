@@ -1,7 +1,30 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { checkKeywordQuota } from "./quota.service";
+import { Keyword } from "@/types/models";
 
-export async function listKeywords(userId: string) {
+interface KeywordDbRow {
+  id: string;
+  user_id: string;
+  topic_id?: string | null;
+  keyword: string;
+  enabled: boolean;
+  created_at: string;
+  topics?: { name: string } | null;
+}
+
+function mapKeywordRow(row: KeywordDbRow): Keyword {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    topicId: row.topic_id || undefined,
+    topicName: row.topics?.name || undefined,
+    keyword: row.keyword,
+    enabled: row.enabled,
+    createdAt: row.created_at,
+  };
+}
+
+export async function listKeywords(userId: string): Promise<Keyword[]> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("keywords")
@@ -10,13 +33,13 @@ export async function listKeywords(userId: string) {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return ((data || []) as unknown as KeywordDbRow[]).map(mapKeywordRow);
 }
 
 export async function createKeyword(
   userId: string,
   input: { keyword: string; topicId?: string }
-) {
+): Promise<Keyword> {
   await checkKeywordQuota(userId);
 
   const supabase = await createServerSupabaseClient();
@@ -28,7 +51,7 @@ export async function createKeyword(
       topic_id: input.topicId || null,
       enabled: true,
     })
-    .select()
+    .select("*, topics(name)")
     .single();
 
   if (error) {
@@ -38,14 +61,14 @@ export async function createKeyword(
     throw error;
   }
 
-  return data;
+  return mapKeywordRow(data as unknown as KeywordDbRow);
 }
 
 export async function updateKeyword(
   userId: string,
   keywordId: string,
   updates: { enabled?: boolean; topicId?: string | null }
-) {
+): Promise<Keyword> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("keywords")
@@ -55,11 +78,11 @@ export async function updateKeyword(
     })
     .eq("id", keywordId)
     .eq("user_id", userId)
-    .select()
+    .select("*, topics(name)")
     .single();
 
   if (error) throw error;
-  return data;
+  return mapKeywordRow(data as unknown as KeywordDbRow);
 }
 
 export async function deleteKeyword(userId: string, keywordId: string) {

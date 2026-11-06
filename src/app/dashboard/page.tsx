@@ -5,53 +5,141 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ErrorState } from "@/components/shared/error-state";
+import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ArticleCard } from "@/features/articles/components/article-card";
 import { SourceFormDialog } from "@/features/sources/components/source-form-dialog";
-import { initialMockArticles } from "@/features/articles/mocks/articles.mock";
-import { initialMockSources } from "@/features/sources/mocks/sources.mock";
-import { initialMockTopics } from "@/features/topics/mocks/topics.mock";
+import { SourceFormValues } from "@/lib/validation/schemas";
+import { dashboardApi, articlesApi, sourcesApi, quotaApi, QuotaUsage } from "@/lib/api/client";
+import { Article, DashboardStats } from "@/types/models";
 import { Globe, Newspaper, FolderTree, Bookmark, Rss, ArrowRight } from "lucide-react";
 
 export default function DashboardOverviewPage() {
-  const [articles, setArticles] = React.useState(initialMockArticles);
-  const [sources, setSources] = React.useState(initialMockSources);
-  const [topics] = React.useState(initialMockTopics);
+  const [stats, setStats] = React.useState<DashboardStats | null>(null);
+  const [recentArticles, setRecentArticles] = React.useState<Article[]>([]);
+  const [quota, setQuota] = React.useState<QuotaUsage | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [reloadToken, setReloadToken] = React.useState(0);
 
-  const activeSourcesCount = sources.filter((s) => s.enabled && s.status === "healthy").length;
-  const failingSourcesCount = sources.filter((s) => s.status === "error").length;
-  const savedArticlesCount = articles.filter((a) => a.isSaved).length;
+  React.useEffect(() => {
+    let cancelled = false;
 
-  const handleToggleSave = (articleId: string) => {
-    setArticles((prev) =>
-      prev.map((a) => (a.id === articleId ? { ...a, isSaved: !a.isSaved } : a))
-    );
-  };
+    async function load() {
+      try {
+        const [fetchedStats, articlesRes, fetchedQuota] = await Promise.all([
+          dashboardApi.getStats(),
+          articlesApi.list({ limit: 5 }).catch(() => ({ data: [] })),
+          quotaApi.getQuota().catch(() => null),
+        ]);
 
-  const handleToggleRead = (articleId: string) => {
-    setArticles((prev) =>
-      prev.map((a) => (a.id === articleId ? { ...a, isRead: !a.isRead } : a))
-    );
-  };
+        if (!cancelled) {
+          setStats(fetchedStats);
+          const items = articlesRes?.data || (Array.isArray(articlesRes) ? (articlesRes as unknown as Article[]) : []);
+          setRecentArticles(items);
+          if (fetchedQuota) setQuota(fetchedQuota);
+          setError(null);
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : "Failed to load dashboard statistics";
+          setError(msg);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
 
-  const handleAddSource = (values: { name: string; feedUrl: string; siteUrl?: string; description?: string }) => {
-    const newSource = {
-      id: `src-${Date.now()}`,
-      userId: "usr-demo",
-      name: values.name,
-      feedUrl: values.feedUrl,
-      siteUrl: values.siteUrl || "",
-      description: values.description,
-      enabled: true,
-      status: "healthy" as const,
-      lastFetchedAt: "Just now",
-      lastSuccessAt: "Just now",
-      nextFetchAt: "in 60 minutes",
-      fetchIntervalMinutes: 60,
-      consecutiveFailures: 0,
-      createdAt: new Date().toISOString(),
+    load();
+    return () => {
+      cancelled = true;
     };
-    setSources((prev) => [newSource, ...prev]);
+  }, [reloadToken]);
+
+  const handleRetry = () => {
+    setIsLoading(true);
+    setReloadToken((prev) => prev + 1);
   };
+
+  const handleToggleSave = async (articleId: string) => {
+    const target = recentArticles.find((a) => a.id === articleId);
+    if (!target) return;
+
+    const newSaved = !target.isSaved;
+    setRecentArticles((prev) =>
+      prev.map((a) => (a.id === articleId ? { ...a, isSaved: newSaved } : a))
+    );
+
+    try {
+      if (newSaved) {
+        await articlesApi.save(articleId);
+      } else {
+        await articlesApi.unsave(articleId);
+      }
+      dashboardApi.getStats().then(setStats).catch(() => {});
+    } catch {
+      setRecentArticles((prev) =>
+        prev.map((a) => (a.id === articleId ? { ...a, isSaved: target.isSaved } : a))
+      );
+    }
+  };
+
+  const handleToggleRead = async (articleId: string) => {
+    const target = recentArticles.find((a) => a.id === articleId);
+    if (!target) return;
+
+    const newRead = !target.isRead;
+    setRecentArticles((prev) =>
+      prev.map((a) => (a.id === articleId ? { ...a, isRead: newRead } : a))
+    );
+
+    try {
+      await articlesApi.markRead(articleId);
+    } catch {
+      setRecentArticles((prev) =>
+        prev.map((a) => (a.id === articleId ? { ...a, isRead: target.isRead } : a))
+      );
+    }
+  };
+
+  const handleAddSource = async (values: SourceFormValues) => {
+    await sourcesApi.create(values);
+    setIsLoading(true);
+    setReloadToken((prev) => prev + 1);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Intelligence Overview"
+          description="Monitor feed aggregation activity, detected topics, and high-priority articles."
+        />
+        <LoadingSkeleton count={3} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Intelligence Overview"
+          description="Monitor feed aggregation activity, detected topics, and high-priority articles."
+        />
+        <ErrorState
+          title="Unable to load dashboard data"
+          description={error}
+          onRetry={handleRetry}
+        />
+      </div>
+    );
+  }
+
+  const currentSourceCount = stats?.totalSources ?? 0;
+  const maxQuota = quota?.limits?.maxSources ?? 5;
 
   return (
     <div className="space-y-6">
@@ -60,7 +148,8 @@ export default function DashboardOverviewPage() {
         description="Monitor feed aggregation activity, detected topics, and high-priority articles."
       >
         <SourceFormDialog
-          currentSourceCount={sources.length}
+          currentSourceCount={currentSourceCount}
+          maxQuota={maxQuota}
           onAddSource={handleAddSource}
         />
       </PageHeader>
@@ -69,25 +158,25 @@ export default function DashboardOverviewPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Connected Sources"
-          value={sources.length}
-          description={`${activeSourcesCount} active polling`}
+          value={stats?.totalSources ?? 0}
+          description={`${stats?.activeSources ?? 0} active polling`}
           icon={Globe}
         />
         <StatCard
           title="Articles Today"
-          value={articles.length}
+          value={stats?.totalArticlesToday ?? 0}
           description="Ingested in last 24h"
           icon={Newspaper}
         />
         <StatCard
           title="Monitored Topics"
-          value={topics.length}
+          value={stats?.totalTopics ?? 0}
           description="Active tracking clusters"
           icon={FolderTree}
         />
         <StatCard
           title="Saved Articles"
-          value={savedArticlesCount}
+          value={stats?.totalSavedArticles ?? 0}
           description="Bookmarked for review"
           icon={Bookmark}
         />
@@ -109,7 +198,7 @@ export default function DashboardOverviewPage() {
             </Link>
           </div>
 
-          {articles.length === 0 ? (
+          {recentArticles.length === 0 ? (
             <EmptyState
               icon={Rss}
               title="No articles collected yet"
@@ -119,7 +208,7 @@ export default function DashboardOverviewPage() {
             />
           ) : (
             <div className="space-y-3">
-              {articles.slice(0, 3).map((article) => (
+              {recentArticles.slice(0, 3).map((article) => (
                 <ArticleCard
                   key={article.id}
                   article={article}
@@ -141,26 +230,17 @@ export default function DashboardOverviewPage() {
                 <span className="size-2 rounded-full bg-emerald-500" />
                 Healthy Feeds
               </span>
-              <span className="font-semibold text-foreground">{activeSourcesCount}</span>
+              <span className="font-semibold text-foreground">{stats?.activeSources ?? 0}</span>
             </div>
             <div className="flex justify-between items-center pb-2 border-b border-border/50">
               <span className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-red-500" />
-                Failing / Stale Feeds
+                <span className="size-2 rounded-full bg-muted-foreground" />
+                Total Configured
               </span>
-              <span className="font-semibold text-foreground">{failingSourcesCount}</span>
+              <span className="font-semibold text-foreground">{stats?.totalSources ?? 0}</span>
             </div>
-            <div className="flex justify-between items-center pb-2 border-b border-border/50">
-              <span>Background Polling</span>
-              <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                Active (30s interval)
-              </span>
-            </div>
-            <div className="flex justify-between items-center pt-1 text-[11px]">
-              <span>Plan Quota Utilization</span>
-              <span className="font-medium text-foreground">
-                {sources.length} / 5 Sources
-              </span>
+            <div className="pt-2 text-[11px] leading-relaxed">
+              Feeds are queried on scheduled intervals by the background ingestion worker.
             </div>
           </div>
         </div>

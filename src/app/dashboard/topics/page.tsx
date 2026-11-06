@@ -3,34 +3,103 @@
 import * as React from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ErrorState } from "@/components/shared/error-state";
+import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { TopicCard } from "@/features/topics/components/topic-card";
 import { TopicFormDialog } from "@/features/topics/components/topic-form-dialog";
-import { initialMockTopics } from "@/features/topics/mocks/topics.mock";
-import { initialMockKeywords } from "@/features/keywords/mocks/keywords.mock";
 import { TopicFormValues } from "@/lib/validation/schemas";
-import { Topic } from "@/types/models";
+import { topicsApi, keywordsApi } from "@/lib/api/client";
+import { Topic, Keyword } from "@/types/models";
 import { FolderTree } from "lucide-react";
 
 export default function TopicsPage() {
-  const [topics, setTopics] = React.useState<Topic[]>(initialMockTopics);
-  const [keywords] = React.useState(initialMockKeywords);
+  const [topics, setTopics] = React.useState<Topic[]>([]);
+  const [keywords, setKeywords] = React.useState<Keyword[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [reloadToken, setReloadToken] = React.useState(0);
 
-  const handleDelete = (id: string) => {
-    setTopics((prev) => prev.filter((t) => t.id !== id));
-  };
+  React.useEffect(() => {
+    let cancelled = false;
 
-  const handleAddTopic = (values: TopicFormValues) => {
-    const newTopic: Topic = {
-      id: `tpc-${Date.now()}`,
-      userId: "usr-demo",
-      name: values.name,
-      description: values.description,
-      keywordsCount: 0,
-      articlesCount: 0,
-      createdAt: new Date().toISOString(),
+    async function load() {
+      try {
+        const [fetchedTopics, fetchedKeywords] = await Promise.all([
+          topicsApi.list(),
+          keywordsApi.list().catch(() => []),
+        ]);
+        if (!cancelled) {
+          setTopics(fetchedTopics || []);
+          setKeywords(fetchedKeywords || []);
+          setError(null);
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : "Failed to load topics";
+          setError(msg);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
     };
-    setTopics((prev) => [newTopic, ...prev]);
+  }, [reloadToken]);
+
+  const handleRetry = () => {
+    setIsLoading(true);
+    setReloadToken((prev) => prev + 1);
   };
+
+  const handleDelete = async (id: string) => {
+    const previous = topics;
+    setTopics((prev) => prev.filter((t) => t.id !== id));
+
+    try {
+      await topicsApi.delete(id);
+    } catch (err: unknown) {
+      setTopics(previous);
+      alert(err instanceof Error ? err.message : "Failed to delete topic");
+    }
+  };
+
+  const handleAddTopic = async (values: TopicFormValues) => {
+    const created = await topicsApi.create(values);
+    setTopics((prev) => [created, ...prev]);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Topic Management"
+          description="Organize articles and monitored keywords into smart thematic clusters."
+        />
+        <LoadingSkeleton count={3} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Topic Management"
+          description="Organize articles and monitored keywords into smart thematic clusters."
+        />
+        <ErrorState
+          title="Unable to load topics"
+          description={error}
+          onRetry={handleRetry}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

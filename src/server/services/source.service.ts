@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { checkSourceQuota } from "./quota.service";
 import { validateFeedUrl } from "@/lib/rss/ssrf-validator";
 import { fetchAndParseFeed } from "@/lib/rss/feed-parser";
+import { RssSource, SourceStatus } from "@/types/models";
 
 export interface CreateSourceInput {
   name: string;
@@ -11,7 +12,55 @@ export interface CreateSourceInput {
   fetchIntervalMinutes?: number;
 }
 
-export async function listSources(userId: string) {
+interface SourceDbRow {
+  id: string;
+  user_id: string;
+  name: string;
+  feed_url: string;
+  site_url?: string | null;
+  description?: string | null;
+  enabled: boolean;
+  last_fetched_at?: string | null;
+  last_success_at?: string | null;
+  next_fetch_at?: string | null;
+  fetch_interval_minutes: number;
+  consecutive_failures: number;
+  last_error?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+function mapSourceRow(row: SourceDbRow): RssSource {
+  let status: SourceStatus = "healthy";
+  if (!row.enabled) {
+    status = "disabled";
+  } else if (row.consecutive_failures > 0) {
+    status = "error";
+  } else if (!row.last_fetched_at) {
+    status = "pending";
+  }
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    feedUrl: row.feed_url,
+    siteUrl: row.site_url || "",
+    description: row.description || undefined,
+    enabled: row.enabled,
+    status,
+    lastFetchedAt: row.last_fetched_at || undefined,
+    lastSuccessAt: row.last_success_at || undefined,
+    nextFetchAt: row.next_fetch_at || undefined,
+    fetchIntervalMinutes: row.fetch_interval_minutes,
+    consecutiveFailures: row.consecutive_failures || 0,
+    lastError: row.last_error || undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || undefined,
+  };
+}
+
+export async function listSources(userId: string): Promise<RssSource[]> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("rss_sources")
@@ -20,10 +69,10 @@ export async function listSources(userId: string) {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return ((data || []) as SourceDbRow[]).map(mapSourceRow);
 }
 
-export async function createSource(userId: string, input: CreateSourceInput) {
+export async function createSource(userId: string, input: CreateSourceInput): Promise<RssSource> {
   // 1. Quota Check
   await checkSourceQuota(userId);
 
@@ -42,8 +91,8 @@ export async function createSource(userId: string, input: CreateSourceInput) {
     .insert({
       user_id: userId,
       name: input.name || testParse.title || "RSS Feed",
-      feedUrl: input.feedUrl,
-      siteUrl: input.siteUrl || testParse.siteUrl || "",
+      feed_url: input.feedUrl,
+      site_url: input.siteUrl || testParse.siteUrl || "",
       description: input.description || testParse.description || "",
       fetch_interval_minutes: input.fetchIntervalMinutes || 60,
       enabled: true,
@@ -59,7 +108,7 @@ export async function createSource(userId: string, input: CreateSourceInput) {
     throw error;
   }
 
-  return data;
+  return mapSourceRow(data as SourceDbRow);
 }
 
 export async function getSource(userId: string, sourceId: string) {
@@ -72,7 +121,10 @@ export async function getSource(userId: string, sourceId: string) {
     .single();
 
   if (error) throw new Error("NOT_FOUND");
-  return data;
+  return {
+    ...mapSourceRow(data as SourceDbRow),
+    fetchLogs: data.feed_fetch_logs || [],
+  };
 }
 
 export async function updateSource(
@@ -84,7 +136,7 @@ export async function updateSource(
     fetchIntervalMinutes?: number;
     description?: string;
   }
-) {
+): Promise<RssSource> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("rss_sources")
@@ -103,7 +155,7 @@ export async function updateSource(
     .single();
 
   if (error) throw error;
-  return data;
+  return mapSourceRow(data as SourceDbRow);
 }
 
 export async function deleteSource(userId: string, sourceId: string) {
@@ -132,5 +184,5 @@ export async function refreshSource(userId: string, sourceId: string) {
     .single();
 
   if (error) throw error;
-  return data;
+  return mapSourceRow(data as SourceDbRow);
 }

@@ -37,6 +37,9 @@ export function ArticleFilters({
     onTopicChange("");
   };
 
+  const selectedTopicName = availableTopics.find((t) => t.id === selectedTopic)?.name || selectedTopic;
+  const selectedSourceName = availableSources.find((s) => s.id === selectedSourceId)?.name;
+
   return (
     <div className="space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
@@ -46,13 +49,13 @@ export function ArticleFilters({
           <Input
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search headline, keywords, or summary..."
+            placeholder="Search headline or keywords..."
             className="h-8 pl-8 text-xs bg-muted/40"
           />
           {searchQuery && (
             <button
               onClick={() => onSearchChange("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <X className="size-3" />
             </button>
@@ -81,7 +84,7 @@ export function ArticleFilters({
         >
           <option value="">All Topics</option>
           {availableTopics.map((t) => (
-            <option key={t.id} value={t.name}>
+            <option key={t.id} value={t.id}>
               {t.name}
             </option>
           ))}
@@ -93,7 +96,7 @@ export function ArticleFilters({
             variant="ghost"
             size="sm"
             onClick={handleReset}
-            className="h-8 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
+            className="h-8 text-xs text-muted-foreground hover:text-foreground gap-1 px-2 cursor-pointer"
           >
             <X className="size-3" />
             <span>Reset</span>
@@ -105,15 +108,15 @@ export function ArticleFilters({
       <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
         <div className="flex items-center gap-1.5 flex-wrap">
           <SlidersHorizontal className="size-3" />
-          <span>Showing {totalCount} articles</span>
+          <span>Showing {totalCount} loaded articles</span>
           {selectedSourceId && (
             <Badge variant="secondary" className="text-[10px] py-0">
-              Source: {availableSources.find((s) => s.id === selectedSourceId)?.name}
+              Source: {selectedSourceName}
             </Badge>
           )}
           {selectedTopic && (
             <Badge variant="secondary" className="text-[10px] py-0">
-              Topic: {selectedTopic}
+              Topic: {selectedTopicName}
             </Badge>
           )}
         </div>

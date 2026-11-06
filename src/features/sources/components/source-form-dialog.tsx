@@ -15,10 +15,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SourceFormValues, sourceFormSchema } from "@/lib/validation/schemas";
+import { sourcesApi } from "@/lib/api/client";
 import { Plus, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 
 interface SourceFormDialogProps {
-  onAddSource: (values: SourceFormValues) => void;
+  onAddSource: (values: SourceFormValues) => Promise<void> | void;
   currentSourceCount: number;
   maxQuota?: number;
   children?: React.ReactElement;
@@ -39,6 +40,8 @@ export function SourceFormDialog({
 
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [isValidating, setIsValidating] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [serverError, setServerError] = React.useState<string | null>(null);
   const [validatedFeed, setValidatedFeed] = React.useState<{
     title?: string;
     itemCount?: number;
@@ -46,32 +49,40 @@ export function SourceFormDialog({
 
   const isQuotaReached = currentSourceCount >= maxQuota;
 
-  const handleSimulateValidate = () => {
+  const handleValidate = async () => {
     if (!feedUrl) {
       setErrors({ feedUrl: "Please enter a feed URL to validate" });
       return;
     }
     setIsValidating(true);
     setErrors({});
+    setServerError(null);
 
-    // Simulate validation
-    setTimeout(() => {
-      setIsValidating(false);
-      try {
-        new URL(feedUrl);
+    try {
+      const res = await sourcesApi.validate(feedUrl);
+      if (res.valid) {
         setValidatedFeed({
-          title: name || "Detected RSS 2.0 Feed",
-          itemCount: 15,
+          title: res.title,
+          itemCount: res.itemCount,
         });
-        if (!name) setName("New Feed Publication");
-      } catch {
-        setErrors({ feedUrl: "Invalid URL format or network unreachable" });
+        if (!name && res.title) setName(res.title);
+        if (!siteUrl && res.siteUrl) setSiteUrl(res.siteUrl);
+        if (!description && res.description) setDescription(res.description);
+      } else {
+        setErrors({ feedUrl: "Feed URL could not be validated" });
       }
-    }, 600);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Validation failed";
+      setErrors({ feedUrl: msg });
+    } finally {
+      setIsValidating(false);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setServerError(null);
+
     const result = sourceFormSchema.safeParse({
       name,
       feedUrl,
@@ -90,9 +101,17 @@ export function SourceFormDialog({
       return;
     }
 
-    onAddSource(result.data);
-    setOpen(false);
-    resetForm();
+    setIsSubmitting(true);
+    try {
+      await onAddSource(result.data);
+      setOpen(false);
+      resetForm();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save feed";
+      setServerError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -102,6 +121,7 @@ export function SourceFormDialog({
     setDescription("");
     setFetchIntervalMinutes(60);
     setErrors({});
+    setServerError(null);
     setValidatedFeed(null);
   };
 
@@ -129,14 +149,21 @@ export function SourceFormDialog({
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-800 dark:text-amber-300 space-y-2">
             <div className="flex items-center gap-2 font-semibold">
               <AlertCircle className="size-4 shrink-0" />
-              <span>Plan Source Limit Reached (Free Plan)</span>
+              <span>Plan Source Limit Reached</span>
             </div>
             <p>
-              You are currently using {currentSourceCount} of {maxQuota} allowed sources. Upgrade your plan to connect additional sources.
+              You are currently using {currentSourceCount} of {maxQuota} allowed sources. Upgrade your plan in Settings to connect additional sources.
             </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+            {serverError && (
+              <div className="flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/20 p-2 text-xs text-destructive">
+                <AlertCircle className="size-4 shrink-0" />
+                <span>{serverError}</span>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label htmlFor="feedUrl" className="text-xs">
                 Feed URL <span className="text-destructive">*</span>
@@ -148,13 +175,14 @@ export function SourceFormDialog({
                   onChange={(e) => setFeedUrl(e.target.value)}
                   placeholder="https://techcrunch.com/feed/"
                   className="h-8 text-xs flex-1"
+                  disabled={isSubmitting}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={handleSimulateValidate}
-                  disabled={isValidating || !feedUrl}
+                  onClick={handleValidate}
+                  disabled={isValidating || !feedUrl || isSubmitting}
                   className="h-8 text-xs shrink-0"
                 >
                   {isValidating ? (
@@ -173,7 +201,7 @@ export function SourceFormDialog({
               <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-2 text-xs text-emerald-800 dark:text-emerald-300">
                 <CheckCircle2 className="size-3.5 shrink-0" />
                 <span>
-                  Valid feed confirmed ({validatedFeed.itemCount} items detected)
+                  Valid feed confirmed ({validatedFeed.itemCount ?? 0} items detected)
                 </span>
               </div>
             )}
@@ -188,6 +216,7 @@ export function SourceFormDialog({
                 onChange={(e) => setName(e.target.value)}
                 placeholder="TechCrunch"
                 className="h-8 text-xs"
+                disabled={isSubmitting}
               />
               {errors.name && (
                 <p className="text-[11px] text-destructive">{errors.name}</p>
@@ -205,6 +234,7 @@ export function SourceFormDialog({
                   onChange={(e) => setSiteUrl(e.target.value)}
                   placeholder="https://techcrunch.com"
                   className="h-8 text-xs"
+                  disabled={isSubmitting}
                 />
                 {errors.siteUrl && (
                   <p className="text-[11px] text-destructive">{errors.siteUrl}</p>
@@ -219,6 +249,7 @@ export function SourceFormDialog({
                   id="interval"
                   value={fetchIntervalMinutes}
                   onChange={(e) => setFetchIntervalMinutes(Number(e.target.value))}
+                  disabled={isSubmitting}
                   className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <option value={15}>Every 15 minutes</option>
@@ -240,19 +271,27 @@ export function SourceFormDialog({
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Brief note about this feed"
                 className="h-8 text-xs"
+                disabled={isSubmitting}
               />
             </div>
 
             <DialogFooter className="mt-4 pt-2">
               <DialogClose
                 render={
-                  <Button type="button" variant="outline" size="sm">
+                  <Button type="button" variant="outline" size="sm" disabled={isSubmitting}>
                     Cancel
                   </Button>
                 }
               />
-              <Button type="submit" size="sm">
-                Save Source
+              <Button type="submit" size="sm" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Source"
+                )}
               </Button>
             </DialogFooter>
           </form>

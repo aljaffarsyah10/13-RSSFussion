@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -21,7 +21,15 @@ const pageTitles: Record<string, string> = {
 
 export function DashboardHeader() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [headerSearch, setHeaderSearch] = React.useState("");
   const currentTitle = pageTitles[pathname] || "Dashboard";
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && headerSearch.trim()) {
+      router.push(`/dashboard/articles?q=${encodeURIComponent(headerSearch.trim())}`);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur-md supports-backdrop-filter:bg-background/60">
@@ -39,9 +47,11 @@ export function DashboardHeader() {
         <div className="relative hidden w-48 lg:w-64 sm:block">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
           <Input
-            placeholder="Quick search... (Ctrl+K)"
+            value={headerSearch}
+            onChange={(e) => setHeaderSearch(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            placeholder="Quick search... (Press Enter)"
             className="h-8 pl-8 pr-3 text-xs bg-muted/40 border-border"
-            readOnly
           />
         </div>
 

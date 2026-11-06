@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "cn";
+import { quotaApi, QuotaUsage } from "@/lib/api/client";
 
 const navigationItems = [
   {
@@ -72,6 +73,21 @@ const navigationItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const [quota, setQuota] = React.useState<QuotaUsage | null>(null);
+
+  React.useEffect(() => {
+    quotaApi
+      .getQuota()
+      .then((res) => setQuota(res))
+      .catch(() => {});
+  }, [pathname]);
+
+  const sourcesUsed = quota?.usage.sources ?? 0;
+  const sourcesMax = quota?.limits.maxSources ?? 5;
+  const percentage = Math.min(Math.round((sourcesUsed / sourcesMax) * 100), 100);
+  const planLabel = quota?.plan
+    ? quota.plan.charAt(0).toUpperCase() + quota.plan.slice(1) + " Plan"
+    : "Free Plan";
 
   return (
     <Sidebar className="border-r border-border">
@@ -130,28 +146,31 @@ export function AppSidebar() {
         {/* Quota Progress Pill */}
         <div className="rounded-lg border border-border bg-card/60 p-3">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-foreground">Free Plan</span>
+            <span className="font-medium text-foreground">{planLabel}</span>
             <Badge variant="outline" className="text-[10px] py-0 px-1.5">
-              0 / 5
+              {sourcesUsed} / {sourcesMax}
             </Badge>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
             Sources connected
           </p>
           <div className="mt-2 h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-            <div className="h-full bg-primary rounded-full" style={{ width: "0%" }} />
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-300"
+              style={{ width: `${percentage}%` }}
+            />
           </div>
         </div>
 
-        {/* User row placeholder */}
+        {/* User row */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <div className="flex size-7 items-center justify-center rounded-full bg-muted text-muted-foreground">
               <User className="size-3.5" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-medium text-foreground">Guest User</span>
-              <span className="text-[10px] text-muted-foreground">Free Tier</span>
+              <span className="text-xs font-medium text-foreground">Workspace User</span>
+              <span className="text-[10px] text-muted-foreground">{planLabel}</span>
             </div>
           </div>
           <Link
