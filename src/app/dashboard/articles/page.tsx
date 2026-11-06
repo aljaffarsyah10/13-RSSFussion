@@ -20,6 +20,7 @@ export default function ArticlesPage() {
   const [debouncedQuery, setDebouncedQuery] = React.useState("");
   const [selectedSourceId, setSelectedSourceId] = React.useState("");
   const [selectedTopic, setSelectedTopic] = React.useState("");
+  const [readStatus, setReadStatus] = React.useState<"all" | "unread" | "read">("all");
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
 
   const [isLoading, setIsLoading] = React.useState(true);
@@ -56,6 +57,7 @@ export default function ArticlesPage() {
           q: debouncedQuery || undefined,
           sourceId: selectedSourceId || undefined,
           topicId: selectedTopic || undefined,
+          readStatus: readStatus !== "all" ? readStatus : undefined,
           limit: 15,
         });
 
@@ -81,7 +83,7 @@ export default function ArticlesPage() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, selectedSourceId, selectedTopic, reloadToken]);
+  }, [debouncedQuery, selectedSourceId, selectedTopic, readStatus, reloadToken]);
 
   const handleRetry = () => {
     setIsLoading(true);
@@ -97,6 +99,7 @@ export default function ArticlesPage() {
         q: debouncedQuery || undefined,
         sourceId: selectedSourceId || undefined,
         topicId: selectedTopic || undefined,
+        readStatus: readStatus !== "all" ? readStatus : undefined,
         cursor: nextCursor,
         limit: 15,
       });
@@ -148,7 +151,7 @@ export default function ArticlesPage() {
     );
 
     try {
-      await articlesApi.markRead(articleId);
+      await articlesApi.markRead(articleId, newRead);
     } catch {
       // Revert on failure
       setArticles((prev) =>
@@ -180,6 +183,11 @@ export default function ArticlesPage() {
         onTopicChange={(t) => {
           setIsLoading(true);
           setSelectedTopic(t);
+        }}
+        readStatus={readStatus}
+        onReadStatusChange={(st) => {
+          setIsLoading(true);
+          setReadStatus(st);
         }}
         availableSources={sources.map((s) => ({ id: s.id, name: s.name }))}
         availableTopics={topics.map((t) => ({ id: t.id, name: t.name }))}

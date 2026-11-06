@@ -6,7 +6,7 @@ export function PublicNavbar() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/60">
       <div className="container mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2" aria-label="RSSFusion home">
           <div className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
             <Rss className="size-4" />
           </div>
@@ -15,7 +15,7 @@ export function PublicNavbar() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-6 text-sm md:flex">
+        <nav className="hidden items-center gap-6 text-sm md:flex" aria-label="Main navigation">
           <Link
             href="/#features"
             className="text-muted-foreground transition-colors hover:text-foreground"

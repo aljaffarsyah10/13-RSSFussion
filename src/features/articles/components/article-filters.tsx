@@ -13,6 +13,8 @@ interface ArticleFiltersProps {
   onSourceChange: (sourceId: string) => void;
   selectedTopic: string;
   onTopicChange: (topic: string) => void;
+  readStatus?: "all" | "unread" | "read";
+  onReadStatusChange?: (status: "all" | "unread" | "read") => void;
   availableSources: Array<{ id: string; name: string }>;
   availableTopics: Array<{ id: string; name: string }>;
   totalCount: number;
@@ -25,16 +27,21 @@ export function ArticleFilters({
   onSourceChange,
   selectedTopic,
   onTopicChange,
+  readStatus = "all",
+  onReadStatusChange,
   availableSources,
   availableTopics,
   totalCount,
 }: ArticleFiltersProps) {
-  const hasActiveFilters = Boolean(searchQuery || selectedSourceId || selectedTopic);
+  const hasActiveFilters = Boolean(
+    searchQuery || selectedSourceId || selectedTopic || (readStatus && readStatus !== "all")
+  );
 
   const handleReset = () => {
     onSearchChange("");
     onSourceChange("");
     onTopicChange("");
+    if (onReadStatusChange) onReadStatusChange("all");
   };
 
   const selectedTopicName = availableTopics.find((t) => t.id === selectedTopic)?.name || selectedTopic;
@@ -89,6 +96,19 @@ export function ArticleFilters({
             </option>
           ))}
         </select>
+
+        {/* Read Status Selector */}
+        {onReadStatusChange && (
+          <select
+            value={readStatus}
+            onChange={(e) => onReadStatusChange(e.target.value as "all" | "unread" | "read")}
+            className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="all">All Read Status</option>
+            <option value="unread">Unread Only</option>
+            <option value="read">Read Only</option>
+          </select>
+        )}
 
         {/* Reset */}
         {hasActiveFilters && (

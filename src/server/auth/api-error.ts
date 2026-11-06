@@ -38,6 +38,13 @@ export function handleApiError(err: unknown) {
     );
   }
 
+  if (message.startsWith("RATE_LIMITED")) {
+    return NextResponse.json(
+      { error: { code: "RATE_LIMITED", message } },
+      { status: 429 }
+    );
+  }
+
   return NextResponse.json(
     { error: { code: "BAD_REQUEST", message } },
     { status: 400 }

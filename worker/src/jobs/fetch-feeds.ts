@@ -154,6 +154,27 @@ async function processSingleSource(pool: Pool, source: ClaimedSource) {
               `,
               [art.id, kwId]
             );
+
+            // Queue email notification with idempotency check
+            const matchedKwObj = userKeywords.find((k: { id: string; keyword: string }) => k.id === kwId);
+            const kwName = matchedKwObj?.keyword || "keyword";
+            await pool.query(
+              `
+              INSERT INTO email_notifications (
+                user_id, article_id, keyword_id, recipient_email, subject, idempotency_key, status
+              )
+              SELECT
+                $1, $2, $3, COALESCE(p.notification_email, u.email),
+                '[RSSFusion Alert] Keyword "' || $4 || '" matched: ' || $5,
+                'kw_notif_' || $1 || '_' || $2 || '_' || $3,
+                'pending'
+              FROM auth.users u
+              LEFT JOIN profiles p ON p.id = u.id
+              WHERE u.id = $1 AND COALESCE(p.email_notifications_enabled, true) = true
+              ON CONFLICT (idempotency_key) DO NOTHING;
+              `,
+              [source.user_id, art.id, kwId, kwName, art.title]
+            );
           }
         }
       }

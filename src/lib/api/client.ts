@@ -123,6 +123,38 @@ export const authApi = {
     }),
 };
 
+export const opmlApi = {
+  importXml: (xmlContent: string) =>
+    apiRequest<OpmlImportResult>("/api/sources/opml/import", {
+      method: "POST",
+      body: JSON.stringify({ xmlContent }),
+    }),
+
+  importFile: async (file: File): Promise<OpmlImportResult> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch("/api/sources/opml/import", {
+      method: "POST",
+      body: formData,
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new ApiError(result.error?.message || "OPML import failed", response.status, result.error?.code);
+    }
+    return result.data;
+  },
+
+  getExportUrl: () => "/api/sources/opml/export",
+};
+
+export interface OpmlImportResult {
+  totalParsed: number;
+  importedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  errors: string[];
+}
+
 export const sourcesApi = {
   list: () => apiRequest<RssSource[]>("/api/sources", { retries: 1 }),
 
@@ -167,11 +199,19 @@ export interface ArticlesResponse {
 }
 
 export const articlesApi = {
-  list: (params?: { q?: string; sourceId?: string; topicId?: string; cursor?: string; limit?: number }) => {
+  list: (params?: {
+    q?: string;
+    sourceId?: string;
+    topicId?: string;
+    readStatus?: "all" | "unread" | "read";
+    cursor?: string;
+    limit?: number;
+  }) => {
     const searchParams = new URLSearchParams();
     if (params?.q) searchParams.set("q", params.q);
     if (params?.sourceId) searchParams.set("sourceId", params.sourceId);
     if (params?.topicId) searchParams.set("topicId", params.topicId);
+    if (params?.readStatus && params.readStatus !== "all") searchParams.set("readStatus", params.readStatus);
     if (params?.cursor) searchParams.set("cursor", params.cursor);
     if (params?.limit) searchParams.set("limit", params.limit.toString());
 
@@ -180,9 +220,10 @@ export const articlesApi = {
     return apiRequest<ArticlesResponse>(url, { retries: 1 });
   },
 
-  markRead: (articleId: string) =>
-    apiRequest<{ success: boolean }>(`/api/articles/${articleId}/read`, {
+  markRead: (articleId: string, isRead = true) =>
+    apiRequest<{ isRead: boolean }>(`/api/articles/${articleId}/read`, {
       method: "POST",
+      body: JSON.stringify({ isRead }),
     }),
 
   save: (articleId: string) =>
@@ -243,6 +284,43 @@ export const keywordsApi = {
     apiRequest<{ success: boolean }>(`/api/keywords/${id}`, {
       method: "DELETE",
     }),
+};
+
+export interface TrendAnalytics {
+  articlesPerDay: Array<{ date: string; label: string; count: number }>;
+  topicDistribution: Array<{ name: string; count: number }>;
+  topSources: Array<{ name: string; count: number }>;
+  totalIngestedPastWeek: number;
+}
+
+export const analyticsApi = {
+  getTrends: () => apiRequest<TrendAnalytics>("/api/analytics/trends", { retries: 1 }),
+};
+
+export const notificationsApi = {
+  getSettings: () =>
+    apiRequest<{ emailNotificationsEnabled: boolean; notificationEmail: string }>(
+      "/api/settings/notifications"
+    ),
+  updateSettings: (data: { emailNotificationsEnabled: boolean; notificationEmail?: string }) =>
+    apiRequest<{ email_notifications_enabled: boolean; notification_email?: string }>(
+      "/api/settings/notifications",
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }
+    ),
+  listHistory: () =>
+    apiRequest<
+      Array<{
+        id: string;
+        subject: string;
+        recipientEmail: string;
+        status: string;
+        createdAt: string;
+        sentAt?: string;
+      }>
+    >("/api/notifications"),
 };
 
 export const dashboardApi = {

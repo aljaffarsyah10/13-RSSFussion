@@ -48,6 +48,13 @@ export function ArticleCard({
         {/* Header Metadata */}
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <div className="flex flex-wrap items-center gap-2">
+            {!article.isRead && (
+              <span
+                className="size-2 rounded-full bg-blue-600 dark:bg-blue-400 shrink-0"
+                title="Unread article"
+                aria-label="Unread"
+              />
+            )}
             <span className="flex items-center gap-1 font-semibold text-foreground">
               <Globe className="size-3 text-muted-foreground" />
               {article.sourceName}

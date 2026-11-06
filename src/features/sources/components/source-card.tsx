@@ -6,7 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { Globe, RefreshCw, Trash2, Power, AlertTriangle, ExternalLink } from "lucide-react";
+import { Globe, RefreshCw, Trash2, Power, AlertTriangle, ExternalLink, Activity } from "lucide-react";
+import { FeedHealthDialog } from "./feed-health-dialog";
 import { cn } from "cn";
 
 interface SourceCardProps {
@@ -71,6 +72,22 @@ export function SourceCard({
 
           {/* Quick Actions */}
           <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-start">
+            <FeedHealthDialog
+              source={source}
+              onRefresh={onRefresh}
+              isRefreshing={isRefreshing}
+            >
+              <Button
+                variant="outline"
+                size="icon-xs"
+                title="Feed health diagnostics"
+                className="size-7 text-muted-foreground hover:text-foreground"
+              >
+                <Activity className="size-3.5" />
+                <span className="sr-only">Health</span>
+              </Button>
+            </FeedHealthDialog>
+
             <Button
               variant="outline"
               size="icon-xs"

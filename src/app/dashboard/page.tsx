@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ArticleCard } from "@/features/articles/components/article-card";
 import { SourceFormDialog } from "@/features/sources/components/source-form-dialog";
+import { TrendAnalyticsCard } from "@/features/analytics/components/trend-analytics-card";
 import { SourceFormValues } from "@/lib/validation/schemas";
 import { dashboardApi, articlesApi, sourcesApi, quotaApi, QuotaUsage } from "@/lib/api/client";
 import { Article, DashboardStats } from "@/types/models";
@@ -245,6 +246,9 @@ export default function DashboardOverviewPage() {
           </div>
         </div>
       </div>
+
+      {/* Ingestion & Topic Trend Analytics */}
+      <TrendAnalyticsCard />
     </div>
   );
 }

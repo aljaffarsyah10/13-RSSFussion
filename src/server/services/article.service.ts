@@ -4,6 +4,7 @@ export interface ArticleFilters {
   q?: string;
   sourceId?: string;
   topicId?: string;
+  readStatus?: "all" | "unread" | "read";
   limit?: number;
   cursor?: string; // ISO date string of published_at for pagination
 }
@@ -74,7 +75,7 @@ export async function listArticles(userId: string, filters: ArticleFilters = {})
 
   const rows = (data || []) as unknown as ArticleRow[];
 
-  return rows.map((row) => ({
+  let mapped = rows.map((row) => ({
     id: row.id,
     sourceId: row.source_id,
     sourceName: row.rss_sources?.name || "Feed",
@@ -91,18 +92,37 @@ export async function listArticles(userId: string, filters: ArticleFilters = {})
     isSaved: Boolean(row.saved_articles && row.saved_articles.length > 0),
     isRead: Boolean(row.article_read_status && row.article_read_status.length > 0),
   }));
+
+  if (filters.readStatus === "unread") {
+    mapped = mapped.filter((a) => !a.isRead);
+  } else if (filters.readStatus === "read") {
+    mapped = mapped.filter((a) => a.isRead);
+  }
+
+  return mapped;
 }
 
-export async function markArticleRead(userId: string, articleId: string) {
+export async function markArticleRead(userId: string, articleId: string, isRead = true) {
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase
-    .from("article_read_status")
-    .upsert({ user_id: userId, article_id: articleId }, { onConflict: "user_id,article_id" })
-    .select()
-    .single();
+  if (isRead) {
+    const { data, error } = await supabase
+      .from("article_read_status")
+      .upsert({ user_id: userId, article_id: articleId }, { onConflict: "user_id,article_id" })
+      .select()
+      .single();
 
-  if (error) throw error;
-  return data;
+    if (error) throw error;
+    return { isRead: true, data };
+  } else {
+    const { error } = await supabase
+      .from("article_read_status")
+      .delete()
+      .eq("user_id", userId)
+      .eq("article_id", articleId);
+
+    if (error) throw error;
+    return { isRead: false };
+  }
 }
 
 export async function saveArticle(userId: string, articleId: string) {

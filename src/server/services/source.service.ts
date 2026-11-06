@@ -172,6 +172,23 @@ export async function deleteSource(userId: string, sourceId: string) {
 
 export async function refreshSource(userId: string, sourceId: string) {
   const supabase = await createServerSupabaseClient();
+
+  const { data: existing, error: checkErr } = await supabase
+    .from("rss_sources")
+    .select("last_fetched_at")
+    .eq("id", sourceId)
+    .eq("user_id", userId)
+    .single();
+
+  if (checkErr || !existing) throw new Error("NOT_FOUND");
+
+  if (existing.last_fetched_at) {
+    const elapsedMs = Date.now() - new Date(existing.last_fetched_at).getTime();
+    if (elapsedMs < 60 * 1000) {
+      throw new Error("RATE_LIMITED: Please wait at least 60 seconds before manually re-fetching this source.");
+    }
+  }
+
   const { data, error } = await supabase
     .from("rss_sources")
     .update({

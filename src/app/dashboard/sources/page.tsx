@@ -7,10 +7,12 @@ import { ErrorState } from "@/components/shared/error-state";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { SourceCard } from "@/features/sources/components/source-card";
 import { SourceFormDialog } from "@/features/sources/components/source-form-dialog";
+import { OpmlDialog } from "@/features/sources/components/opml-dialog";
 import { SourceFormValues } from "@/lib/validation/schemas";
-import { sourcesApi, quotaApi, QuotaUsage } from "@/lib/api/client";
+import { sourcesApi, quotaApi, opmlApi, QuotaUsage } from "@/lib/api/client";
 import { RssSource } from "@/types/models";
-import { Globe, Plus } from "lucide-react";
+import { Globe, Plus, Download } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 
 export default function SourcesPage() {
   const [sources, setSources] = React.useState<RssSource[]>([]);
@@ -152,11 +154,28 @@ export default function SourcesPage() {
         title="RSS Sources"
         description="Connect and manage news websites, tech blogs, and publication feeds."
       >
-        <SourceFormDialog
-          currentSourceCount={sources.length}
-          maxQuota={maxQuota}
-          onAddSource={handleAddSource}
-        />
+        <div className="flex items-center gap-2 flex-wrap">
+          <a
+            href={opmlApi.getExportUrl()}
+            download="rssfusion-subscriptions.opml"
+            className={buttonVariants({
+              variant: "outline",
+              size: "sm",
+              className: "h-8 gap-1.5 text-xs",
+            })}
+          >
+            <Download className="size-3.5" />
+            <span>Export OPML</span>
+          </a>
+
+          <OpmlDialog onImportSuccess={handleRetry} />
+
+          <SourceFormDialog
+            currentSourceCount={sources.length}
+            maxQuota={maxQuota}
+            onAddSource={handleAddSource}
+          />
+        </div>
       </PageHeader>
 
       {sources.length === 0 ? (

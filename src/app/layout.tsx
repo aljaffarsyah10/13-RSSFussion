@@ -13,10 +13,38 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://rssfusion.local";
+
 export const metadata: Metadata = {
-  title: "RSSFusion — Information Intelligence",
+  metadataBase: new URL(baseUrl),
+  title: {
+    default: "RSSFusion — Information Intelligence Platform",
+    template: "%s | RSSFusion",
+  },
   description:
-    "Aggregated information intelligence platform for monitoring RSS, blogs, and news feeds.",
+    "Aggregated information intelligence platform for monitoring RSS feeds, tech publications, and critical keywords in real time.",
+  keywords: [
+    "RSS",
+    "Atom",
+    "Feed Reader",
+    "Information Intelligence",
+    "Keyword Monitoring",
+    "Tech News",
+    "RSS Aggregator",
+  ],
+  authors: [{ name: "RSSFusion Team" }],
+  openGraph: {
+    title: "RSSFusion — Information Intelligence Platform",
+    description: "Monitor RSS feeds, tech publications, and keywords with automated background ingestion.",
+    url: baseUrl,
+    siteName: "RSSFusion",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "RSSFusion — Information Intelligence Platform",
+    description: "Monitor RSS feeds and keywords with automated background ingestion.",
+  },
 };
 
 export default function RootLayout({

@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     const q = searchParams.get("q") || undefined;
     const sourceId = searchParams.get("sourceId") || undefined;
     const topicId = searchParams.get("topicId") || undefined;
+    const readStatus = (searchParams.get("readStatus") as "all" | "unread" | "read") || undefined;
     const cursor = searchParams.get("cursor") || undefined;
     const limit = searchParams.get("limit") ? parseInt(searchParams.get("limit")!, 10) : 20;
 
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
       q,
       sourceId,
       topicId,
+      readStatus,
       cursor,
       limit,
     });
