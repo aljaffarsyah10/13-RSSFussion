@@ -11,7 +11,7 @@ export async function DELETE(
     const user = await requireUser();
     const { articleId } = await params;
     await unsaveArticle(user.id, articleId);
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ data: { success: true }, success: true });
   } catch (err: unknown) {
     return handleApiError(err);
   }

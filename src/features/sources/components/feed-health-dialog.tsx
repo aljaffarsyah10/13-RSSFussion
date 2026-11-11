@@ -12,19 +12,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { RssSource } from "@/types/models";
+import { FeedFetchLog, RssSource } from "@/types/models";
+import { sourcesApi } from "@/lib/api/client";
 import { Activity, Clock, AlertTriangle, CheckCircle2, RotateCcw, Loader2 } from "lucide-react";
-
-interface FetchLog {
-  id: string;
-  source_id: string;
-  status: "success" | "failure";
-  http_status?: number;
-  duration_ms?: number;
-  articles_fetched: number;
-  error_message?: string;
-  created_at: string;
-}
 
 interface FeedHealthDialogProps {
   source: RssSource;
@@ -40,7 +30,7 @@ export function FeedHealthDialog({
   isRefreshing,
 }: FeedHealthDialogProps) {
   const [open, setOpen] = React.useState(false);
-  const [logs, setLogs] = React.useState<FetchLog[]>([]);
+  const [logs, setLogs] = React.useState<FeedFetchLog[]>([]);
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
@@ -48,11 +38,11 @@ export function FeedHealthDialog({
 
     let cancelled = false;
 
-    fetch(`/api/sources/${source.id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled && data?.data?.fetchLogs) {
-          setLogs(data.data.fetchLogs);
+    sourcesApi
+      .get(source.id)
+      .then((res) => {
+        if (!cancelled && res?.fetchLogs) {
+          setLogs(res.fetchLogs);
         }
       })
       .catch(() => {})
@@ -175,14 +165,18 @@ export function FeedHealthDialog({
                 {logs.map((log) => (
                   <div key={log.id} className="p-2.5 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0">
-                      {log.status === "success" ? (
+                      {log.status === "success" || log.status === "not_modified" ? (
                         <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />
                       ) : (
                         <AlertTriangle className="size-3.5 text-red-500 shrink-0" />
                       )}
                       <div className="min-w-0">
                         <span className="font-medium text-foreground">
-                          {log.status === "success" ? "Ingestion Success" : "Fetch Error"}
+                          {log.status === "success"
+                            ? "Ingestion Success"
+                            : log.status === "not_modified"
+                            ? "Not Modified (304)"
+                            : "Fetch Error"}
                         </span>
                         {log.error_message && (
                           <p className="text-[11px] text-destructive truncate">{log.error_message}</p>
@@ -190,8 +184,10 @@ export function FeedHealthDialog({
                       </div>
                     </div>
                     <div className="text-right shrink-0 text-[11px] text-muted-foreground">
-                      <span>{log.articles_fetched} articles</span>
-                      {log.duration_ms && <span> • {log.duration_ms}ms</span>}
+                      <span>
+                        {log.articles_inserted ?? 0} new / {log.articles_found ?? 0} found
+                      </span>
+                      {log.duration_ms ? <span> • {log.duration_ms}ms</span> : null}
                       <p>{new Date(log.created_at).toLocaleTimeString()}</p>
                     </div>
                   </div>

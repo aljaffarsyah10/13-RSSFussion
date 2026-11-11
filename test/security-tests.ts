@@ -1,5 +1,6 @@
 import { isPrivateOrReservedIP, validateFeedUrl } from "../src/lib/rss/ssrf-validator";
 import { canonicalizeUrl, stripHtml } from "../src/lib/rss/article-normalizer";
+import { sanitizeSearchQuery } from "../src/server/services/article.service";
 import { PLAN_LIMITS } from "../src/server/services/quota.service";
 import { handleApiError } from "../src/server/auth/api-error";
 
@@ -22,6 +23,8 @@ async function runSecurityAudit() {
     "http://192.168.1.1/router",
     "http://10.0.0.5/internal",
     "http://172.16.0.1/secrets",
+    "http://[::1]/admin",
+    "http://[::ffff:127.0.0.1]/internal",
     "file:///etc/passwd",
     "ftp://internal.vault/keys",
     "gopher://127.0.0.1:6379/",
@@ -44,6 +47,8 @@ async function runSecurityAudit() {
   assert(isPrivateOrReservedIP("169.254.169.254"), "Should block 169.254 link-local cloud metadata");
   assert(isPrivateOrReservedIP("0.0.0.0"), "Should block 0.0.0.0");
   assert(isPrivateOrReservedIP("::1"), "Should block ::1 IPv6 loopback");
+  assert(isPrivateOrReservedIP("[::1]"), "Should block bracketed [::1] IPv6 loopback");
+  assert(isPrivateOrReservedIP("::ffff:7f00:1"), "Should block hex IPv4-mapped IPv6 loopback");
   assert(!isPrivateOrReservedIP("8.8.8.8"), "Should allow public Google DNS IP 8.8.8.8");
   assert(!isPrivateOrReservedIP("1.1.1.1"), "Should allow public Cloudflare IP 1.1.1.1");
   console.log("   ✓ All IP classifications and range checks verified.");
@@ -64,14 +69,19 @@ async function runSecurityAudit() {
   assert(sanitized.includes("Breaking Headline"), "Sanitizer must preserve benign readable text");
   console.log("   ✓ HTML sanitization and XSS prevention verified.");
 
-  // 4. Canonical URL Normalization
-  console.log("4. Testing URL normalization and tracking param stripping...");
+  // 4. Canonical URL Normalization & Search Query Sanitization
+  console.log("4. Testing URL normalization, tracking param stripping & filter sanitization...");
   const canonical = canonicalizeUrl("https://example.com/article?utm_source=twitter&utm_medium=social&fbclid=12345&id=42");
   assert(!canonical.includes("utm_source"), "Tracking param utm_source must be stripped");
   assert(!canonical.includes("fbclid"), "Tracking param fbclid must be stripped");
   assert(canonical.includes("id=42"), "Functional query params must be preserved");
   assert(canonical === "https://example.com/article?id=42", "Canonical URL should match expected");
-  console.log("   ✓ Canonical URL normalization verified.");
+
+  const sanitizedSearch = sanitizeSearchQuery("AI,id.eq.1,(drop)%_test");
+  assert(!sanitizedSearch.includes(","), "Must strip commas to prevent PostgREST .or() injection");
+  assert(!sanitizedSearch.includes("("), "Must strip parentheses from search query");
+  assert(!sanitizedSearch.includes("%"), "Must strip raw SQL wildcards from search query");
+  console.log("   ✓ Canonical URL normalization & PostgREST query sanitization verified.");
 
   // 5. Plan Quotas Verification
   console.log("5. Testing subscription plan quota boundaries...");
@@ -91,8 +101,14 @@ async function runSecurityAudit() {
   const notFoundErrResponse = handleApiError(new Error("NOT_FOUND"));
   assert(notFoundErrResponse.status === 404, "NOT_FOUND must map to 404 status");
 
+  const pgrstNotFoundResponse = handleApiError({ message: "No rows", code: "PGRST116" });
+  assert(pgrstNotFoundResponse.status === 404, "PGRST116 must map to 404 status");
+
   const quotaErrResponse = handleApiError(new Error("QUOTA_EXCEEDED: limit reached"));
   assert(quotaErrResponse.status === 403, "QUOTA_EXCEEDED must map to 403 status");
+
+  const dbTriggerQuotaResponse = handleApiError({ message: "QUOTA_EXCEEDED: Topic limit of 3 reached", code: "P0001" });
+  assert(dbTriggerQuotaResponse.status === 403, "DB trigger QUOTA_EXCEEDED object must map to 403 status");
 
   const ssrfErrResponse = handleApiError(new Error("SSRF_BLOCKED: private ip"));
   assert(ssrfErrResponse.status === 422, "SSRF_BLOCKED must map to 422 status");
@@ -102,6 +118,9 @@ async function runSecurityAudit() {
 
   const conflictErrResponse = handleApiError(new Error("CONFLICT: feed already exists"));
   assert(conflictErrResponse.status === 409, "CONFLICT must map to 409 status");
+
+  const pgUniqueConflictResponse = handleApiError({ message: "duplicate key", code: "23505" });
+  assert(pgUniqueConflictResponse.status === 409, "PostgreSQL 23505 must map to 409 status");
   console.log("   ✓ API security error mappings verified.");
 
   console.log("=== ALL SECURITY & INTEGRITY AUDIT CHECKS PASSED ===");

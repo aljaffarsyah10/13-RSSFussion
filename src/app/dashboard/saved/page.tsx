@@ -70,7 +70,7 @@ export default function SavedArticlesPage() {
     );
 
     try {
-      await articlesApi.markRead(articleId);
+      await articlesApi.markRead(articleId, newRead);
     } catch {
       setArticles((prev) =>
         prev.map((a) => (a.id === articleId ? { ...a, isRead: target.isRead } : a))

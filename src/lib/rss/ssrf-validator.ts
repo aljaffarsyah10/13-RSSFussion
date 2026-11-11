@@ -7,7 +7,9 @@ export interface SSRFValidationResult {
   reason?: string;
 }
 
-export function isPrivateOrReservedIP(ip: string): boolean {
+export function isPrivateOrReservedIP(rawIp: string): boolean {
+  const ip = rawIp.trim().replace(/^\[|\]$/g, "");
+
   if (net.isIPv4(ip)) {
     const parts = ip.split(".").map(Number);
     const [b0, b1] = parts;
@@ -26,10 +28,10 @@ export function isPrivateOrReservedIP(ip: string): boolean {
     if (b0 === 172 && b1 >= 16 && b1 <= 31) return true;
     // 192.168.0.0/16 (Private)
     if (b0 === 192 && b1 === 168) return true;
-    // 224.0.0.0/4 (Multicast)
-    if (b0 >= 224 && b0 <= 239) return true;
-    // 240.0.0.0/4 (Reserved / Future use)
-    if (b0 >= 240) return true;
+    // 198.18.0.0/15 (Benchmarking)
+    if (b0 === 198 && (b1 === 18 || b1 === 19)) return true;
+    // 224.0.0.0/4 (Multicast) & 240.0.0.0/4 (Reserved)
+    if (b0 >= 224) return true;
 
     return false;
   }
@@ -43,11 +45,30 @@ export function isPrivateOrReservedIP(ip: string): boolean {
     // Unique local fc00::/7 (fc00 - fdff)
     if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
     // Link-local fe80::/10 (fe80 - febf)
-    if (lower.startsWith("fe8") || lower.startsWith("fe9") || lower.startsWith("fea") || lower.startsWith("feb")) return true;
-    // IPv4-mapped IPv6 (::ffff:127.0.0.1, etc.)
+    if (
+      lower.startsWith("fe8") ||
+      lower.startsWith("fe9") ||
+      lower.startsWith("fea") ||
+      lower.startsWith("feb")
+    ) {
+      return true;
+    }
+    // IPv4-mapped IPv6 (::ffff:127.0.0.1 or hex ::ffff:7f00:1)
     if (lower.startsWith("::ffff:")) {
-      const ipv4Part = lower.replace("::ffff:", "");
-      return isPrivateOrReservedIP(ipv4Part);
+      const mapped = lower.slice(7);
+      if (net.isIPv4(mapped)) {
+        return isPrivateOrReservedIP(mapped);
+      }
+      const hexParts = mapped.split(":");
+      if (hexParts.length === 2) {
+        const hi = parseInt(hexParts[0], 16);
+        const lo = parseInt(hexParts[1], 16);
+        if (!Number.isNaN(hi) && !Number.isNaN(lo)) {
+          const ipv4 = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+          return isPrivateOrReservedIP(ipv4);
+        }
+      }
+      return true;
     }
 
     return false;
@@ -80,9 +101,10 @@ export async function validateFeedUrl(urlString: string): Promise<SSRFValidation
     return { valid: false, reason: "Only standard ports 80 and 443 are allowed" };
   }
 
-  // 4. Hostname blacklist check
-  const hostname = parsedUrl.hostname.toLowerCase();
+  // 4. Hostname normalization & blacklist check
+  const hostname = parsedUrl.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (
+    !hostname ||
     hostname === "localhost" ||
     hostname.endsWith(".localhost") ||
     hostname.endsWith(".local") ||
@@ -91,6 +113,18 @@ export async function validateFeedUrl(urlString: string): Promise<SSRFValidation
     hostname === "169.254.169.254"
   ) {
     return { valid: false, reason: "Internal or metadata hostnames are blocked" };
+  }
+
+  // Direct IP literal check before DNS lookup
+  if (net.isIP(hostname)) {
+    if (isPrivateOrReservedIP(hostname)) {
+      return {
+        valid: false,
+        resolvedIp: hostname,
+        reason: `IP (${hostname}) is in a private, local, or reserved range`,
+      };
+    }
+    return { valid: true, resolvedIp: hostname };
   }
 
   // 5. DNS Resolution check
@@ -116,4 +150,49 @@ export async function validateFeedUrl(urlString: string): Promise<SSRFValidation
     const message = err instanceof Error ? err.message : String(err);
     return { valid: false, reason: `DNS lookup error: ${message}` };
   }
+}
+
+/**
+ * Performs an HTTP fetch while validating every redirect hop against SSRF rules.
+ */
+export async function safeFetchWithRedirects(
+  initialUrl: string,
+  init: RequestInit,
+  maxRedirects = 5
+): Promise<Response> {
+  let currentUrl = initialUrl;
+
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    const ssrfCheck = await validateFeedUrl(currentUrl);
+    if (!ssrfCheck.valid) {
+      throw new Error(`SSRF_BLOCKED: ${ssrfCheck.reason}`);
+    }
+
+    const response = await fetch(currentUrl, {
+      ...init,
+      redirect: "manual",
+    });
+
+    if (
+      response.status === 301 ||
+      response.status === 302 ||
+      response.status === 303 ||
+      response.status === 307 ||
+      response.status === 308
+    ) {
+      const location = response.headers.get("location");
+      if (!location) {
+        throw new Error(`HTTP_${response.status}: Redirect response missing Location header`);
+      }
+      if (hop === maxRedirects) {
+        throw new Error("TOO_MANY_REDIRECTS: Maximum redirect hops (5) exceeded");
+      }
+      currentUrl = new URL(location, currentUrl).toString();
+      continue;
+    }
+
+    return response;
+  }
+
+  throw new Error("TOO_MANY_REDIRECTS: Maximum redirect hops exceeded");
 }

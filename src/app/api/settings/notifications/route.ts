@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/get-user";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { updateNotificationPreferences } from "@/server/services/notification.service";
+import { notificationSettingsSchema } from "@/lib/validation/schemas";
 import { handleApiError } from "@/server/auth/api-error";
 
 export async function GET() {
@@ -31,11 +32,25 @@ export async function PATCH(request: Request) {
     const user = await requireUser();
     const body = await request.json();
 
-    const updated = await updateNotificationPreferences(user.id, {
+    const parsed = notificationSettingsSchema.safeParse({
       emailNotificationsEnabled: Boolean(body.emailNotificationsEnabled),
-      notificationEmail: body.notificationEmail,
+      notificationEmail: body.notificationEmail ?? "",
     });
 
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "VALIDATION_ERROR",
+            message: parsed.error.issues[0]?.message || "Invalid notification settings",
+            details: parsed.error.issues,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    const updated = await updateNotificationPreferences(user.id, parsed.data);
     return NextResponse.json({ data: updated });
   } catch (err: unknown) {
     return handleApiError(err);

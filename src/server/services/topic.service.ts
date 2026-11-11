@@ -2,6 +2,11 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { checkTopicQuota } from "./quota.service";
 import { Topic } from "@/types/models";
 
+interface TopicKeywordNested {
+  id: string;
+  article_keyword_matches?: Array<{ article_id: string }>;
+}
+
 interface TopicDbRow {
   id: string;
   user_id: string;
@@ -9,16 +14,30 @@ interface TopicDbRow {
   description?: string | null;
   created_at: string;
   updated_at?: string | null;
-  keywords?: Array<{ count: number }>;
+  keywords?: TopicKeywordNested[];
 }
 
 function mapTopicRow(row: TopicDbRow): Topic {
+  const kwList = Array.isArray(row.keywords) ? row.keywords : [];
+  const distinctArticles = new Set<string>();
+
+  for (const kw of kwList) {
+    if (Array.isArray(kw.article_keyword_matches)) {
+      for (const m of kw.article_keyword_matches) {
+        if (m.article_id) {
+          distinctArticles.add(m.article_id);
+        }
+      }
+    }
+  }
+
   return {
     id: row.id,
     userId: row.user_id,
     name: row.name,
     description: row.description || undefined,
-    keywordsCount: row.keywords?.[0]?.count ?? 0,
+    keywordsCount: kwList.length,
+    articlesCount: distinctArticles.size,
     createdAt: row.created_at,
     updatedAt: row.updated_at || undefined,
   };
@@ -28,7 +47,7 @@ export async function listTopics(userId: string): Promise<Topic[]> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("topics")
-    .select("*, keywords(count)")
+    .select("*, keywords(id, article_keyword_matches(article_id))")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
@@ -47,8 +66,8 @@ export async function createTopic(
     .from("topics")
     .insert({
       user_id: userId,
-      name: input.name,
-      description: input.description || "",
+      name: input.name.trim(),
+      description: input.description?.trim() || "",
     })
     .select()
     .single();
@@ -72,17 +91,25 @@ export async function updateTopic(
   const { data, error } = await supabase
     .from("topics")
     .update({
-      ...(updates.name !== undefined && { name: updates.name }),
-      ...(updates.description !== undefined && { description: updates.description }),
+      ...(updates.name !== undefined && { name: updates.name.trim() }),
+      ...(updates.description !== undefined && { description: updates.description.trim() }),
       updated_at: new Date().toISOString(),
     })
     .eq("id", topicId)
     .eq("user_id", userId)
-    .select()
+    .select("*, keywords(id, article_keyword_matches(article_id))")
     .single();
 
-  if (error) throw error;
-  return mapTopicRow(data as TopicDbRow);
+  if (error) {
+    if (error.code === "PGRST116") {
+      throw new Error("NOT_FOUND");
+    }
+    if (error.code === "23505") {
+      throw new Error("CONFLICT: A topic with this name already exists");
+    }
+    throw error;
+  }
+  return mapTopicRow(data as unknown as TopicDbRow);
 }
 
 export async function deleteTopic(userId: string, topicId: string) {

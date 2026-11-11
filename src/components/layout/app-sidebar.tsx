@@ -29,7 +29,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import { quotaApi, QuotaUsage } from "@/lib/api/client";
 
 const navigationItems = [

@@ -26,8 +26,9 @@ async function runWorkerLoop() {
   isJobActive = true;
   try {
     await processFeedsJob(pool, env.WORKER_CONCURRENCY);
-  } catch (err: any) {
-    logger.error("Unhandled exception in worker polling cycle", { error: err.message });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error("Unhandled exception in worker polling cycle", { error: message });
   } finally {
     isJobActive = false;
   }

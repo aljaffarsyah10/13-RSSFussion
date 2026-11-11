@@ -2,7 +2,7 @@ import * as React from "react";
 import Link from "next/link";
 import { LucideIcon, Inbox } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 
 interface EmptyStateProps {
   icon?: LucideIcon;

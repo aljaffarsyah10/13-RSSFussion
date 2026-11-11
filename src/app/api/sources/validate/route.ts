@@ -29,9 +29,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       data: {
+        valid: true,
         title: parsed.title,
         description: parsed.description,
         siteUrl: parsed.siteUrl,
+        itemCount: parsed.items.length,
         itemsCount: parsed.items.length,
         recentItems: parsed.items.slice(0, 3).map((item) => ({
           title: item.title,

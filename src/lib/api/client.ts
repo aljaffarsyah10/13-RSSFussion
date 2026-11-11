@@ -130,18 +130,13 @@ export const opmlApi = {
       body: JSON.stringify({ xmlContent }),
     }),
 
-  importFile: async (file: File): Promise<OpmlImportResult> => {
+  importFile: (file: File): Promise<OpmlImportResult> => {
     const formData = new FormData();
     formData.append("file", file);
-    const response = await fetch("/api/sources/opml/import", {
+    return apiRequest<OpmlImportResult>("/api/sources/opml/import", {
       method: "POST",
       body: formData,
     });
-    const result = await response.json();
-    if (!response.ok) {
-      throw new ApiError(result.error?.message || "OPML import failed", response.status, result.error?.code);
-    }
-    return result.data;
   },
 
   getExportUrl: () => "/api/sources/opml/export",
@@ -158,7 +153,15 @@ export interface OpmlImportResult {
 export const sourcesApi = {
   list: () => apiRequest<RssSource[]>("/api/sources", { retries: 1 }),
 
-  create: (data: { name: string; feedUrl: string; siteUrl?: string; description?: string }) =>
+  get: (id: string) => apiRequest<RssSource>(`/api/sources/${id}`, { retries: 1 }),
+
+  create: (data: {
+    name: string;
+    feedUrl: string;
+    siteUrl?: string;
+    description?: string;
+    fetchIntervalMinutes?: number;
+  }) =>
     apiRequest<RssSource>("/api/sources", {
       method: "POST",
       body: JSON.stringify(data),
@@ -184,13 +187,17 @@ export const sourcesApi = {
     }),
 
   validate: (feedUrl: string) =>
-    apiRequest<{ valid: boolean; title?: string; description?: string; siteUrl?: string; itemCount?: number }>(
-      "/api/sources/validate",
-      {
-        method: "POST",
-        body: JSON.stringify({ feedUrl }),
-      }
-    ),
+    apiRequest<{
+      valid: boolean;
+      title?: string;
+      description?: string;
+      siteUrl?: string;
+      itemCount?: number;
+      itemsCount?: number;
+    }>("/api/sources/validate", {
+      method: "POST",
+      body: JSON.stringify({ feedUrl }),
+    }),
 };
 
 export interface ArticlesResponse {
@@ -303,13 +310,15 @@ export const notificationsApi = {
       "/api/settings/notifications"
     ),
   updateSettings: (data: { emailNotificationsEnabled: boolean; notificationEmail?: string }) =>
-    apiRequest<{ email_notifications_enabled: boolean; notification_email?: string }>(
-      "/api/settings/notifications",
-      {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }
-    ),
+    apiRequest<{
+      emailNotificationsEnabled: boolean;
+      notificationEmail: string;
+      email_notifications_enabled: boolean;
+      notification_email?: string;
+    }>("/api/settings/notifications", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
   listHistory: () =>
     apiRequest<
       Array<{

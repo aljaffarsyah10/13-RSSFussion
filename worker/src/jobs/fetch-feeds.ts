@@ -40,9 +40,10 @@ export async function processFeedsJob(pool: Pool, concurrency: number) {
     const res = await client.query(claimQuery, [concurrency]);
     sources = res.rows;
     await client.query("COMMIT;");
-  } catch (err: any) {
+  } catch (err: unknown) {
     await client.query("ROLLBACK;");
-    logger.error("Failed to claim due sources from PostgreSQL", { error: err.message });
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error("Failed to claim due sources from PostgreSQL", { error: message });
     return;
   } finally {
     client.release();
@@ -111,7 +112,7 @@ async function processSingleSource(pool: Pool, source: ClaimedSource) {
           description, content_snippet, author, image_url, published_at, fetched_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
-        ON CONFLICT (source_id, canonical_url) DO NOTHING
+        ON CONFLICT DO NOTHING
         RETURNING id, title, description, content_snippet;
       `;
       const insertRes = await pool.query(insertQuery, [
@@ -211,7 +212,8 @@ async function processSingleSource(pool: Pool, source: ClaimedSource) {
       inserted: insertedArticles.length,
       durationMs,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
     const durationMs = Date.now() - startTime;
     const failures = source.consecutive_failures + 1;
     // Exponential backoff: min(interval * 2^failures, 1440m)
@@ -219,7 +221,7 @@ async function processSingleSource(pool: Pool, source: ClaimedSource) {
 
     logger.error(`Error ingesting feed: ${source.name}`, {
       sourceId: source.id,
-      error: err.message,
+      error: errorMessage,
       failures,
       backoffMinutes,
     });
@@ -233,13 +235,13 @@ async function processSingleSource(pool: Pool, source: ClaimedSource) {
           next_fetch_at = now() + ($3 || ' minutes')::interval
       WHERE id = $4;
       `,
-      [failures, err.message?.slice(0, 500) || "Unknown error", backoffMinutes, source.id]
+      [failures, errorMessage.slice(0, 500) || "Unknown error", backoffMinutes, source.id]
     );
 
     await recordFetchLog(pool, {
       sourceId: source.id,
       status: "failed",
-      errorMessage: err.message,
+      errorMessage,
       durationMs,
     });
   }
@@ -275,7 +277,8 @@ async function recordFetchLog(
         data.durationMs,
       ]
     );
-  } catch (logErr: any) {
-    logger.warn("Failed to write to feed_fetch_logs", { error: logErr.message });
+  } catch (logErr: unknown) {
+    const message = logErr instanceof Error ? logErr.message : String(logErr);
+    logger.warn("Failed to write to feed_fetch_logs", { error: message });
   }
 }

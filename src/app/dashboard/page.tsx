@@ -97,7 +97,7 @@ export default function DashboardOverviewPage() {
     );
 
     try {
-      await articlesApi.markRead(articleId);
+      await articlesApi.markRead(articleId, newRead);
     } catch {
       setRecentArticles((prev) =>
         prev.map((a) => (a.id === articleId ? { ...a, isRead: target.isRead } : a))

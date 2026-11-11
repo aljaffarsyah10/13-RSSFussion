@@ -1,5 +1,6 @@
 import Parser from "rss-parser";
-import { validateFeedUrl } from "./ssrf-validator.js";
+import { env } from "../config/env.js";
+import { safeFetchWithRedirects } from "./ssrf-validator.js";
 import {
   canonicalizeUrl,
   stripHtml,
@@ -7,11 +8,14 @@ import {
   extractImageUrl,
 } from "./article-normalizer.js";
 
+const DEFAULT_ACCEPT_HEADER =
+  "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8";
+
 const parser = new Parser({
-  timeout: 15000,
+  timeout: env.WORKER_FETCH_TIMEOUT_MS,
   headers: {
-    "User-Agent": "RSSFusionBot/1.0 (+https://github.com/rssfusion/rssfusion)",
-    Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+    "User-Agent": env.WORKER_USER_AGENT,
+    Accept: DEFAULT_ACCEPT_HEADER,
   },
 });
 
@@ -40,28 +44,22 @@ export async function fetchFeed(
   sourceId: string,
   options?: { etag?: string; lastModified?: string }
 ): Promise<FetchResult> {
-  const ssrf = await validateFeedUrl(feedUrl);
-  if (!ssrf.valid) {
-    throw new Error(`SSRF_BLOCKED: ${ssrf.reason}`);
-  }
-
   const headers: Record<string, string> = {
-    "User-Agent": "RSSFusionBot/1.0 (+https://github.com/rssfusion/rssfusion)",
-    Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+    "User-Agent": env.WORKER_USER_AGENT,
+    Accept: DEFAULT_ACCEPT_HEADER,
   };
   if (options?.etag) headers["If-None-Match"] = options.etag;
   if (options?.lastModified) headers["If-Modified-Since"] = options.lastModified;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), env.WORKER_FETCH_TIMEOUT_MS);
 
   let response: Response;
   try {
-    response = await fetch(feedUrl, {
+    response = await safeFetchWithRedirects(feedUrl, {
       method: "GET",
       headers,
       signal: controller.signal,
-      redirect: "follow",
     });
   } finally {
     clearTimeout(timeoutId);
@@ -93,26 +91,38 @@ export async function fetchFeed(
   const nowIso = new Date().toISOString();
 
   const items: NormalizedArticleItem[] = (feed.items || []).slice(0, 100).map((item) => {
+    const rawItem = item as Record<string, unknown>;
     const originalLink = item.link || item.guid || feedUrl;
     const canonicalLink = canonicalizeUrl(originalLink);
     const cleanTitle = stripHtml(item.title || "Untitled Article");
-    const rawContent = item["content:encoded"] || item.content || item.summary || "";
-    const cleanDescription = stripHtml(item.contentSnippet || item.summary || rawContent).slice(0, 1000);
+    const rawContent =
+      (typeof rawItem["content:encoded"] === "string" ? rawItem["content:encoded"] : "") ||
+      item.content ||
+      item.summary ||
+      "";
+    const cleanDescription = stripHtml(item.contentSnippet || item.summary || rawContent).slice(
+      0,
+      1000
+    );
     const snippet = cleanDescription.slice(0, 300);
 
     let pubDateIso = nowIso;
     if (item.isoDate) {
       pubDateIso = item.isoDate;
     } else if (item.pubDate) {
-      try {
-        pubDateIso = new Date(item.pubDate).toISOString();
-      } catch {
-        pubDateIso = nowIso;
+      const parsedDate = new Date(item.pubDate);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        pubDateIso = parsedDate.toISOString();
       }
     }
 
-    const guid = item.id || item.guid || generateFallbackGuid(sourceId, canonicalLink, cleanTitle, pubDateIso);
+    const rawId = typeof rawItem.id === "string" ? rawItem.id : undefined;
+    const guid =
+      rawId ||
+      item.guid ||
+      generateFallbackGuid(sourceId, canonicalLink, cleanTitle, pubDateIso);
     const imageUrl = extractImageUrl(rawContent, item.enclosure?.url);
+    const rawAuthor = typeof rawItem.author === "string" ? rawItem.author : undefined;
 
     return {
       guid,
@@ -121,7 +131,7 @@ export async function fetchFeed(
       title: cleanTitle,
       description: cleanDescription,
       contentSnippet: snippet,
-      author: item.creator || item.author || undefined,
+      author: item.creator || rawAuthor || undefined,
       imageUrl,
       publishedAt: pubDateIso,
     };

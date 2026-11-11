@@ -2,6 +2,18 @@ export type SubscriptionPlan = "free" | "starter" | "pro" | "business";
 
 export type SourceStatus = "healthy" | "pending" | "error" | "disabled";
 
+export interface FeedFetchLog {
+  id: string;
+  source_id: string;
+  status: "success" | "failed" | "not_modified";
+  http_status?: number | null;
+  articles_found: number;
+  articles_inserted: number;
+  error_message?: string | null;
+  duration_ms: number;
+  created_at: string;
+}
+
 export interface RssSource {
   id: string;
   userId: string;
@@ -19,6 +31,7 @@ export interface RssSource {
   lastError?: string;
   createdAt: string;
   updatedAt?: string;
+  fetchLogs?: FeedFetchLog[];
 }
 
 export interface Article {

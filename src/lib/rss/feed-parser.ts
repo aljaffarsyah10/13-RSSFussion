@@ -1,5 +1,5 @@
 import Parser from "rss-parser";
-import { validateFeedUrl } from "./ssrf-validator";
+import { safeFetchWithRedirects } from "./ssrf-validator";
 import {
   canonicalizeUrl,
   stripHtml,
@@ -7,11 +7,15 @@ import {
   extractImageUrl,
 } from "./article-normalizer";
 
+const DEFAULT_USER_AGENT = "RSSFusionBot/1.0 (+https://github.com/rssfusion/rssfusion)";
+const DEFAULT_ACCEPT_HEADER =
+  "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8";
+
 const parser = new Parser({
   timeout: 15000,
   headers: {
-    "User-Agent": "RSSFusionBot/1.0 (+https://github.com/rssfusion/rssfusion)",
-    Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+    "User-Agent": DEFAULT_USER_AGENT,
+    Accept: DEFAULT_ACCEPT_HEADER,
   },
 });
 
@@ -46,16 +50,9 @@ export async function fetchAndParseFeed(
     lastModified?: string;
   }
 ): Promise<ParseFeedResult> {
-  // 1. SSRF Validation
-  const ssrfCheck = await validateFeedUrl(feedUrl);
-  if (!ssrfCheck.valid) {
-    throw new Error(`SSRF_BLOCKED: ${ssrfCheck.reason}`);
-  }
-
-  // 2. HTTP Request with conditional headers & timeout
   const headers: Record<string, string> = {
-    "User-Agent": "RSSFusionBot/1.0 (+https://github.com/rssfusion/rssfusion)",
-    Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+    "User-Agent": DEFAULT_USER_AGENT,
+    Accept: DEFAULT_ACCEPT_HEADER,
   };
 
   if (options?.etag) {
@@ -70,11 +67,10 @@ export async function fetchAndParseFeed(
 
   let response: Response;
   try {
-    response = await fetch(feedUrl, {
+    response = await safeFetchWithRedirects(feedUrl, {
       method: "GET",
       headers,
       signal: controller.signal,
-      redirect: "follow",
     });
   } finally {
     clearTimeout(timeoutId);
@@ -105,33 +101,45 @@ export async function fetchAndParseFeed(
     throw new Error("FEED_TOO_LARGE: Feed body exceeded 5MB limit");
   }
 
-  // 3. Parse RSS / Atom XML
+  // Parse RSS / Atom XML
   const feed = await parser.parseString(xmlText);
 
-  // 4. Normalize items
+  // Normalize items
   const nowIso = new Date().toISOString();
   const normalizedItems: ParsedFeedItem[] = (feed.items || []).slice(0, 100).map((item) => {
+    const rawItem = item as Record<string, unknown>;
     const originalLink = item.link || item.guid || feedUrl;
     const canonicalLink = canonicalizeUrl(originalLink);
     const cleanTitle = stripHtml(item.title || "Untitled Article");
-    const rawContent = item["content:encoded"] || item.content || item.summary || "";
-    const cleanDescription = stripHtml(item.contentSnippet || item.summary || rawContent).slice(0, 1000);
+    const rawContent =
+      (typeof rawItem["content:encoded"] === "string" ? rawItem["content:encoded"] : "") ||
+      item.content ||
+      item.summary ||
+      "";
+    const cleanDescription = stripHtml(item.contentSnippet || item.summary || rawContent).slice(
+      0,
+      1000
+    );
     const snippet = cleanDescription.slice(0, 300);
 
     let pubDateIso = nowIso;
     if (item.isoDate) {
       pubDateIso = item.isoDate;
     } else if (item.pubDate) {
-      try {
-        pubDateIso = new Date(item.pubDate).toISOString();
-      } catch {
-        pubDateIso = nowIso;
+      const parsedDate = new Date(item.pubDate);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        pubDateIso = parsedDate.toISOString();
       }
     }
 
-    const guid = item.id || item.guid || generateFallbackGuid(sourceId, canonicalLink, cleanTitle, pubDateIso);
+    const rawId = typeof rawItem.id === "string" ? rawItem.id : undefined;
+    const guid =
+      rawId ||
+      item.guid ||
+      generateFallbackGuid(sourceId, canonicalLink, cleanTitle, pubDateIso);
     const enclosureUrl = item.enclosure?.url;
     const imageUrl = extractImageUrl(rawContent, enclosureUrl);
+    const rawAuthor = typeof rawItem.author === "string" ? rawItem.author : undefined;
 
     return {
       guid,
@@ -140,7 +148,7 @@ export async function fetchAndParseFeed(
       title: cleanTitle,
       description: cleanDescription,
       contentSnippet: snippet,
-      author: item.creator || item.author || undefined,
+      author: item.creator || rawAuthor || undefined,
       imageUrl,
       publishedAt: pubDateIso,
     };

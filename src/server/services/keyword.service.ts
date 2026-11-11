@@ -74,14 +74,19 @@ export async function updateKeyword(
     .from("keywords")
     .update({
       ...(updates.enabled !== undefined && { enabled: updates.enabled }),
-      ...(updates.topicId !== undefined && { topic_id: updates.topicId }),
+      ...(updates.topicId !== undefined && { topic_id: updates.topicId || null }),
     })
     .eq("id", keywordId)
     .eq("user_id", userId)
     .select("*, topics(name)")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    if (error.code === "PGRST116") {
+      throw new Error("NOT_FOUND");
+    }
+    throw error;
+  }
   return mapKeywordRow(data as unknown as KeywordDbRow);
 }
 

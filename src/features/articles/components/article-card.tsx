@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Bookmark, BookmarkCheck, ExternalLink, Globe, CheckCircle2 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 
 interface ArticleCardProps {
   article: Article;

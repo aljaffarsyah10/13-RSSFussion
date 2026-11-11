@@ -1,5 +1,13 @@
 import { ApiError } from "../src/lib/api/client";
-import { sourceFormSchema, topicFormSchema, keywordFormSchema } from "../src/lib/validation/schemas";
+import {
+  sourceFormSchema,
+  sourceUpdateSchema,
+  topicFormSchema,
+  topicUpdateSchema,
+  keywordFormSchema,
+  keywordUpdateSchema,
+  notificationSettingsSchema,
+} from "../src/lib/validation/schemas";
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
@@ -18,8 +26,8 @@ async function runIntegrationValidation() {
   assert(err.code === "QUOTA_EXCEEDED", "Code should match QUOTA_EXCEEDED");
   console.log("   ✓ ApiError mapping verified.");
 
-  // 2. Validate Form Schemas against API expectations
-  console.log("2. Testing form schemas against backend expectations...");
+  // 2. Validate Form & Update Schemas against API expectations
+  console.log("2. Testing form & PATCH schemas against backend expectations...");
   const validSource = sourceFormSchema.safeParse({
     name: "Tech News",
     feedUrl: "https://news.ycombinator.com/rss",
@@ -34,17 +42,45 @@ async function runIntegrationValidation() {
   });
   assert(!invalidSource.success, "Source form schema should reject invalid URL & empty name");
 
+  const invalidSourceUpdate = sourceUpdateSchema.safeParse({
+    fetchIntervalMinutes: 2, // below 15 min minimum
+  });
+  assert(!invalidSourceUpdate.success, "Source update schema should reject interval < 15m");
+
   const validTopic = topicFormSchema.safeParse({
     name: "AI & Agents",
     description: "Tracking intelligent agent systems",
   });
   assert(validTopic.success, "Topic schema should pass with name and description");
 
+  const validTopicUpdate = topicUpdateSchema.safeParse({
+    name: "Updated Topic Name",
+  });
+  assert(validTopicUpdate.success, "Topic update schema should pass partial update");
+
   const validKeyword = keywordFormSchema.safeParse({
     keyword: "Large Language Models",
     topicId: "00000000-0000-0000-0000-000000000000",
   });
   assert(validKeyword.success, "Keyword schema should pass with keyword and topicId");
+
+  const validKeywordUpdate = keywordUpdateSchema.safeParse({
+    enabled: false,
+    topicId: null,
+  });
+  assert(validKeywordUpdate.success, "Keyword update schema should allow detaching topicId with null");
+
+  const validNotifSettings = notificationSettingsSchema.safeParse({
+    emailNotificationsEnabled: true,
+    notificationEmail: "alerts@rssfusion.com",
+  });
+  assert(validNotifSettings.success, "Notification settings schema should accept valid email");
+
+  const invalidNotifSettings = notificationSettingsSchema.safeParse({
+    emailNotificationsEnabled: true,
+    notificationEmail: "not-an-email",
+  });
+  assert(!invalidNotifSettings.success, "Notification settings schema should reject invalid email");
   console.log("   ✓ Client-server validation schemas verified.");
 
   // 3. Verify Article pagination logic

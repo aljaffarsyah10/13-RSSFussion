@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Tag, Trash2, Power } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 
 interface KeywordItemProps {
   keyword: Keyword;

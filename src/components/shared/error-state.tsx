@@ -1,7 +1,7 @@
 import * as React from "react";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 
 interface ErrorStateProps {
   title?: string;

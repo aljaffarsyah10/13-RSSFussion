@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 
 interface LoadingSkeletonProps {
   type?: "article-list" | "card-grid" | "stat-row" | "table";

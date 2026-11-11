@@ -14,6 +14,15 @@ export interface EmailNotificationRecord {
   createdAt: string;
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export async function queueKeywordNotification(params: {
   userId: string;
   articleId: string;
@@ -86,6 +95,10 @@ export async function processEmailNotification(notificationId: string): Promise<
     return true;
   }
 
+  const safeUrl = escapeHtml(notif.articles?.original_url || "#");
+  const safeTitle = escapeHtml(notif.articles?.title || "Matched Article");
+  const safeDescription = escapeHtml(notif.articles?.description || "");
+
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -102,10 +115,10 @@ export async function processEmailNotification(notificationId: string): Promise<
             <h2 style="color: #111;">Intelligence Keyword Alert</h2>
             <p style="color: #555;">An article matching your watched keyword was newly ingested:</p>
             <div style="border-left: 3px solid #0066cc; padding-left: 15px; margin: 20px 0;">
-              <h3 style="margin: 0 0 10px;"><a href="${notif.articles?.original_url}" style="color: #0066cc; text-decoration: none;">${notif.articles?.title}</a></h3>
-              <p style="color: #666; font-size: 14px; margin: 0;">${notif.articles?.description || ""}</p>
+              <h3 style="margin: 0 0 10px;"><a href="${safeUrl}" style="color: #0066cc; text-decoration: none;">${safeTitle}</a></h3>
+              <p style="color: #666; font-size: 14px; margin: 0;">${safeDescription}</p>
             </div>
-            <p><a href="${notif.articles?.original_url}" style="display: inline-block; background: #0066cc; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px;">Read Full Story</a></p>
+            <p><a href="${safeUrl}" style="display: inline-block; background: #0066cc; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px;">Read Full Story</a></p>
             <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0 10px;" />
             <p style="color: #999; font-size: 11px;">RSSFusion Information Intelligence — Manage preferences in Settings.</p>
           </div>
@@ -192,5 +205,10 @@ export async function updateNotificationPreferences(
     .single();
 
   if (error) throw error;
-  return data;
+  return {
+    emailNotificationsEnabled: data.email_notifications_enabled,
+    notificationEmail: data.notification_email || "",
+    email_notifications_enabled: data.email_notifications_enabled,
+    notification_email: data.notification_email,
+  };
 }

@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Globe, RefreshCw, Trash2, Power, AlertTriangle, ExternalLink, Activity } from "lucide-react";
 import { FeedHealthDialog } from "./feed-health-dialog";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 
 interface SourceCardProps {
   source: RssSource;

@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { checkSourceQuota } from "./quota.service";
 import { validateFeedUrl } from "@/lib/rss/ssrf-validator";
 import { fetchAndParseFeed } from "@/lib/rss/feed-parser";
-import { RssSource, SourceStatus } from "@/types/models";
+import { FeedFetchLog, RssSource, SourceStatus } from "@/types/models";
 
 export interface CreateSourceInput {
   name: string;
@@ -28,6 +28,7 @@ interface SourceDbRow {
   last_error?: string | null;
   created_at: string;
   updated_at?: string | null;
+  feed_fetch_logs?: FeedFetchLog[];
 }
 
 function mapSourceRow(row: SourceDbRow): RssSource {
@@ -90,10 +91,10 @@ export async function createSource(userId: string, input: CreateSourceInput): Pr
     .from("rss_sources")
     .insert({
       user_id: userId,
-      name: input.name || testParse.title || "RSS Feed",
-      feed_url: input.feedUrl,
-      site_url: input.siteUrl || testParse.siteUrl || "",
-      description: input.description || testParse.description || "",
+      name: input.name.trim() || testParse.title || "RSS Feed",
+      feed_url: input.feedUrl.trim(),
+      site_url: input.siteUrl?.trim() || testParse.siteUrl || "",
+      description: input.description?.trim() || testParse.description || "",
       fetch_interval_minutes: input.fetchIntervalMinutes || 60,
       enabled: true,
       next_fetch_at: new Date().toISOString(),
@@ -111,7 +112,7 @@ export async function createSource(userId: string, input: CreateSourceInput): Pr
   return mapSourceRow(data as SourceDbRow);
 }
 
-export async function getSource(userId: string, sourceId: string) {
+export async function getSource(userId: string, sourceId: string): Promise<RssSource> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("rss_sources")
@@ -120,10 +121,15 @@ export async function getSource(userId: string, sourceId: string) {
     .eq("user_id", userId)
     .single();
 
-  if (error) throw new Error("NOT_FOUND");
+  if (error || !data) throw new Error("NOT_FOUND");
+  const row = data as SourceDbRow;
+  const sortedLogs = [...(row.feed_fetch_logs || [])].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
   return {
-    ...mapSourceRow(data as SourceDbRow),
-    fetchLogs: data.feed_fetch_logs || [],
+    ...mapSourceRow(row),
+    fetchLogs: sortedLogs.slice(0, 25),
   };
 }
 
@@ -141,12 +147,12 @@ export async function updateSource(
   const { data, error } = await supabase
     .from("rss_sources")
     .update({
-      ...(updates.name !== undefined && { name: updates.name }),
+      ...(updates.name !== undefined && { name: updates.name.trim() }),
       ...(updates.enabled !== undefined && { enabled: updates.enabled }),
       ...(updates.fetchIntervalMinutes !== undefined && {
         fetch_interval_minutes: updates.fetchIntervalMinutes,
       }),
-      ...(updates.description !== undefined && { description: updates.description }),
+      ...(updates.description !== undefined && { description: updates.description.trim() }),
       updated_at: new Date().toISOString(),
     })
     .eq("id", sourceId)
@@ -154,7 +160,12 @@ export async function updateSource(
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    if (error.code === "PGRST116") {
+      throw new Error("NOT_FOUND");
+    }
+    throw error;
+  }
   return mapSourceRow(data as SourceDbRow);
 }
 
@@ -185,7 +196,9 @@ export async function refreshSource(userId: string, sourceId: string) {
   if (existing.last_fetched_at) {
     const elapsedMs = Date.now() - new Date(existing.last_fetched_at).getTime();
     if (elapsedMs < 60 * 1000) {
-      throw new Error("RATE_LIMITED: Please wait at least 60 seconds before manually re-fetching this source.");
+      throw new Error(
+        "RATE_LIMITED: Please wait at least 60 seconds before manually re-fetching this source."
+      );
     }
   }
 

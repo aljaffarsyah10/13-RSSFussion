@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
@@ -12,12 +13,12 @@ import { articlesApi, sourcesApi, topicsApi } from "@/lib/api/client";
 import { Article, RssSource, Topic } from "@/types/models";
 import { Newspaper, Loader2 } from "lucide-react";
 
-export default function ArticlesPage() {
+function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
   const [articles, setArticles] = React.useState<Article[]>([]);
   const [sources, setSources] = React.useState<RssSource[]>([]);
   const [topics, setTopics] = React.useState<Topic[]>([]);
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  const [searchQuery, setSearchQuery] = React.useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = React.useState(initialQuery);
   const [selectedSourceId, setSelectedSourceId] = React.useState("");
   const [selectedTopic, setSelectedTopic] = React.useState("");
   const [readStatus, setReadStatus] = React.useState<"all" | "unread" | "read">("all");
@@ -222,6 +223,7 @@ export default function ArticlesPage() {
                   setSearchQuery("");
                   setSelectedSourceId("");
                   setSelectedTopic("");
+                  setReadStatus("all");
                 }
           }
         />
@@ -255,5 +257,29 @@ export default function ArticlesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function ArticlesPageWithSearchParams() {
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get("q") || "";
+  return <ArticlesPageContent key={initialQuery} initialQuery={initialQuery} />;
+}
+
+export default function ArticlesPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="space-y-6">
+          <PageHeader
+            title="Articles Feed"
+            description="Browse and filter aggregated stories from your followed publications."
+          />
+          <LoadingSkeleton count={4} />
+        </div>
+      }
+    >
+      <ArticlesPageWithSearchParams />
+    </React.Suspense>
   );
 }

@@ -11,6 +11,15 @@ export interface OpmlParseResult {
   feeds: OpmlFeedItem[];
 }
 
+function unescapeXml(str: string): string {
+  return str
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
+}
+
 /**
  * Parses OPML XML string and extracts all RSS/Atom outline feeds.
  */
@@ -19,7 +28,7 @@ export function parseOpml(xmlContent: string): OpmlParseResult {
 
   // Match title in head
   const titleMatch = xmlContent.match(/<head>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<\/head>/i);
-  const title = titleMatch ? titleMatch[1].trim() : undefined;
+  const title = titleMatch ? unescapeXml(titleMatch[1].trim()) : undefined;
 
   // Match all <outline ... /> or <outline ...> tags
   const outlineRegex = /<outline\b([^>]+?)(?:\/?>|>[\s\S]*?<\/outline>)/gi;
@@ -32,11 +41,18 @@ export function parseOpml(xmlContent: string): OpmlParseResult {
     const getAttr = (name: string): string | undefined => {
       const reg = new RegExp(`\\b${name}=["']([^"']*)["']`, "i");
       const m = attrString.match(reg);
-      return m ? m[1].trim() : undefined;
+      return m ? unescapeXml(m[1].trim()) : undefined;
     };
 
     const xmlUrl = getAttr("xmlUrl") || getAttr("xmlurl") || getAttr("url");
-    if (!xmlUrl || !xmlUrl.startsWith("http")) {
+    if (!xmlUrl || (!xmlUrl.startsWith("http://") && !xmlUrl.startsWith("https://"))) {
+      continue;
+    }
+
+    let parsedHost = "RSS Feed";
+    try {
+      parsedHost = new URL(xmlUrl).hostname || "RSS Feed";
+    } catch {
       continue;
     }
 
@@ -44,7 +60,7 @@ export function parseOpml(xmlContent: string): OpmlParseResult {
       getAttr("text") ||
       getAttr("title") ||
       getAttr("description") ||
-      new URL(xmlUrl).hostname;
+      parsedHost;
 
     const htmlUrl = getAttr("htmlUrl") || getAttr("htmlurl");
     const description = getAttr("description");
