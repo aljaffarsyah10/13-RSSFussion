@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { Globe, RefreshCw, Trash2, Power, AlertTriangle, ExternalLink, Activity } from "lucide-react";
+import { Globe, RefreshCw, Trash2, Power, AlertTriangle, ExternalLink, Activity, Clock } from "lucide-react";
 import { FeedHealthDialog } from "./feed-health-dialog";
 import { cn } from "@/lib/utils";
 
@@ -28,20 +28,20 @@ export function SourceCard({
   return (
     <Card
       className={cn(
-        "border border-border bg-card transition-all hover:border-foreground/20",
-        !source.enabled && "opacity-60 bg-muted/10"
+        "border border-border/80 bg-card/90 transition-all duration-200 hover:border-primary/40 hover:shadow-sm",
+        !source.enabled && "opacity-60 bg-muted/20 border-border/40"
       )}
     >
       <CardContent className="p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground">
-              <Globe className="size-4" />
+          <div className="flex items-start gap-3.5 flex-1 min-w-0">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-secondary/80 text-foreground">
+              <Globe className="size-4.5 text-muted-foreground" />
             </div>
 
             <div className="flex-1 min-w-0 space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-semibold text-sm sm:text-base text-foreground truncate">
+                <h3 className="font-semibold text-sm sm:text-base text-foreground tracking-tight truncate">
                   {source.name}
                 </h3>
                 <StatusBadge status={source.status} />
@@ -54,8 +54,8 @@ export function SourceCard({
                     href={source.siteUrl}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
-                    className="text-muted-foreground hover:text-foreground shrink-0"
-                    title="Visit site"
+                    className="text-muted-foreground hover:text-foreground shrink-0 transition-colors"
+                    title="Visit website"
                   >
                     <ExternalLink className="size-3" />
                   </a>
@@ -63,7 +63,7 @@ export function SourceCard({
               </div>
 
               {source.description && (
-                <p className="text-xs text-muted-foreground line-clamp-1">
+                <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">
                   {source.description}
                 </p>
               )}
@@ -81,7 +81,7 @@ export function SourceCard({
                 variant="outline"
                 size="icon-xs"
                 title="Feed health diagnostics"
-                className="size-7 text-muted-foreground hover:text-foreground"
+                className="size-7.5 text-muted-foreground hover:text-foreground"
               >
                 <Activity className="size-3.5" />
                 <span className="sr-only">Health</span>
@@ -94,9 +94,9 @@ export function SourceCard({
               title="Manual refresh"
               disabled={isRefreshing || !source.enabled}
               onClick={() => onRefresh(source.id)}
-              className="size-7 text-muted-foreground hover:text-foreground"
+              className="size-7.5 text-muted-foreground hover:text-foreground"
             >
-              <RefreshCw className={cn("size-3.5", isRefreshing && "animate-spin")} />
+              <RefreshCw className={cn("size-3.5", isRefreshing && "animate-spin text-primary")} />
               <span className="sr-only">Refresh</span>
             </Button>
 
@@ -106,10 +106,10 @@ export function SourceCard({
               title={source.enabled ? "Disable feed" : "Enable feed"}
               onClick={() => onToggleEnabled(source.id)}
               className={cn(
-                "size-7",
+                "size-7.5",
                 source.enabled
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-muted-foreground"
+                  ? "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               <Power className="size-3.5" />
@@ -127,7 +127,7 @@ export function SourceCard({
                   variant="outline"
                   size="icon-xs"
                   title="Delete source"
-                  className="size-7 text-muted-foreground hover:text-destructive hover:border-destructive/30"
+                  className="size-7.5 text-muted-foreground hover:text-destructive hover:border-destructive/30"
                 >
                   <Trash2 className="size-3.5" />
                   <span className="sr-only">Delete</span>
@@ -139,16 +139,19 @@ export function SourceCard({
 
         {/* Schedule & Error Footer */}
         <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3 text-[11px] text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <span>Interval: every {source.fetchIntervalMinutes}m</span>
-            <span>•</span>
-            <span>Last fetched: {source.lastFetchedAt || "Never"}</span>
-            <span>•</span>
-            <span>Next: {source.nextFetchAt || "Standby"}</span>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="flex items-center gap-1">
+              <Clock className="size-3 opacity-70" />
+              Interval: every {source.fetchIntervalMinutes}m
+            </span>
+            <span className="text-muted-foreground/40">•</span>
+            <span>Last fetched: {source.lastFetchedAt ? new Date(source.lastFetchedAt).toLocaleTimeString() : "Never"}</span>
+            <span className="text-muted-foreground/40">•</span>
+            <span>Next: {source.nextFetchAt ? new Date(source.nextFetchAt).toLocaleTimeString() : "Standby"}</span>
           </div>
 
           {source.lastError && (
-            <div className="flex items-center gap-1 text-red-600 dark:text-red-400 font-medium">
+            <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 font-medium">
               <AlertTriangle className="size-3 shrink-0" />
               <span className="truncate max-w-[200px]">{source.lastError}</span>
             </div>

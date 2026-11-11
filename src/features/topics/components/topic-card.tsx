@@ -20,25 +20,25 @@ export function TopicCard({
   onDelete,
 }: TopicCardProps) {
   return (
-    <Card className="border border-border bg-card transition-all hover:border-foreground/20">
-      <CardContent className="p-5 space-y-3">
+    <Card className="border border-border/80 bg-card/90 transition-all duration-200 hover:border-primary/40 hover:shadow-xs">
+      <CardContent className="p-5 space-y-3.5">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground">
-              <FolderTree className="size-4" />
+          <div className="flex items-center gap-3">
+            <div className="flex size-8.5 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-secondary/80 text-foreground">
+              <FolderTree className="size-4.5 text-muted-foreground" />
             </div>
             <div>
-              <h3 className="font-semibold text-sm sm:text-base text-foreground">
+              <h3 className="font-semibold text-sm sm:text-base text-foreground tracking-tight">
                 {topic.name}
               </h3>
               <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                 <span className="flex items-center gap-1">
-                  <Tag className="size-3" />
+                  <Tag className="size-3 text-muted-foreground/70" />
                   {topic.keywordsCount ?? assignedKeywords.length} keywords
                 </span>
-                <span>•</span>
+                <span className="text-muted-foreground/40">•</span>
                 <span className="flex items-center gap-1">
-                  <Newspaper className="size-3" />
+                  <Newspaper className="size-3 text-muted-foreground/70" />
                   {topic.articlesCount ?? 0} articles
                 </span>
               </div>
@@ -56,7 +56,7 @@ export function TopicCard({
                 variant="ghost"
                 size="icon-xs"
                 title="Delete topic"
-                className="size-7 text-muted-foreground hover:text-destructive"
+                className="size-7.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
               >
                 <Trash2 className="size-3.5" />
                 <span className="sr-only">Delete</span>
@@ -72,12 +72,12 @@ export function TopicCard({
         )}
 
         {assignedKeywords.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-border/50">
             {assignedKeywords.map((kw) => (
               <Badge
                 key={kw}
                 variant="secondary"
-                className="text-[10px] py-0 px-2 font-normal"
+                className="text-[10px] py-0 px-2 font-medium border border-border/60 bg-secondary/70 text-secondary-foreground"
               >
                 #{kw}
               </Badge>

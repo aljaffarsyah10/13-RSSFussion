@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { authApi } from "@/lib/api/client";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, ArrowRight, Rss } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -42,9 +42,12 @@ export default function RegisterPage() {
   };
 
   return (
-    <Card className="border-border">
-      <CardHeader className="space-y-1 pb-4">
-        <CardTitle className="text-lg font-semibold">Create an account</CardTitle>
+    <Card className="border border-border/80 bg-card/95 shadow-lg backdrop-blur-md">
+      <CardHeader className="space-y-1.5 pb-4 text-center">
+        <div className="mx-auto flex size-10 items-center justify-center rounded-xl bg-foreground text-background shadow-xs mb-2">
+          <Rss className="size-5" />
+        </div>
+        <CardTitle className="text-xl font-bold tracking-tight font-heading">Create an account</CardTitle>
         <CardDescription className="text-xs">
           Start aggregating intelligence across your favorite feeds
         </CardDescription>
@@ -52,25 +55,25 @@ export default function RegisterPage() {
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           {error && (
-            <div className="flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/20 p-2.5 text-xs text-destructive">
+            <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-2.5 text-xs text-destructive">
               <AlertCircle className="size-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="fullname" className="text-xs">Full Name</Label>
+            <Label htmlFor="fullname" className="text-xs font-medium">Full Name</Label>
             <Input
               id="fullname"
               placeholder="Alex Morgan"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="h-9 text-xs"
+              className="h-9 text-xs bg-background/80"
               disabled={loading}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-xs">Email</Label>
+            <Label htmlFor="email" className="text-xs font-medium">Email address</Label>
             <Input
               id="email"
               type="email"
@@ -78,27 +81,27 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
-              className="h-9 text-xs"
+              className="h-9 text-xs bg-background/80"
               disabled={loading}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="password" className="text-xs">Password (min 6 chars)</Label>
+            <Label htmlFor="password" className="text-xs font-medium">Password (min 6 chars)</Label>
             <Input
               id="password"
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="h-9 text-xs"
+              className="h-9 text-xs bg-background/80"
               disabled={loading}
             />
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col gap-3 pt-2">
+        <CardFooter className="flex flex-col gap-3.5 pt-2">
           <Button
             type="submit"
-            className="w-full h-9 text-xs cursor-pointer"
+            className="w-full h-9 text-xs cursor-pointer shadow-xs gap-1.5"
             disabled={loading}
           >
             {loading ? (
@@ -107,12 +110,15 @@ export default function RegisterPage() {
                 Creating account...
               </>
             ) : (
-              "Create Account"
+              <>
+                <span>Create Account</span>
+                <ArrowRight className="size-3.5" />
+              </>
             )}
           </Button>
           <p className="text-center text-xs text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/login" className="font-medium text-foreground underline underline-offset-4">
+            <Link href="/login" className="font-semibold text-foreground hover:underline underline-offset-4">
               Sign In
             </Link>
           </p>

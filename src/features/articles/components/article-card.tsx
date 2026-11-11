@@ -5,7 +5,14 @@ import { Article } from "@/types/models";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Bookmark, BookmarkCheck, ExternalLink, Globe, CheckCircle2 } from "lucide-react";
+import {
+  Bookmark,
+  BookmarkCheck,
+  ExternalLink,
+  Globe,
+  CheckCircle2,
+  Calendar,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ArticleCardProps {
@@ -21,7 +28,7 @@ export function ArticleCard({
   onToggleRead,
   className,
 }: ArticleCardProps) {
-  // Format relative or readable date
+  // Format readable timestamp
   const formattedDate = React.useMemo(() => {
     try {
       const d = new Date(article.publishedAt);
@@ -39,32 +46,46 @@ export function ArticleCard({
   return (
     <Card
       className={cn(
-        "group relative overflow-hidden border border-border bg-card transition-all hover:border-foreground/20 hover:shadow-xs",
-        article.isRead && "opacity-75 bg-muted/20",
+        "group relative overflow-hidden border border-border/80 bg-card/90 transition-all duration-200 hover:border-primary/40 hover:shadow-sm",
+        article.isRead && "opacity-75 bg-muted/20 border-border/40",
         className
       )}
     >
-      <CardContent className="p-4 sm:p-5">
+      <CardContent className="p-4.5 sm:p-5">
         {/* Header Metadata */}
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <div className="flex flex-wrap items-center gap-2">
-            {!article.isRead && (
+            {!article.isRead ? (
               <span
-                className="size-2 rounded-full bg-blue-600 dark:bg-blue-400 shrink-0"
+                className="size-2 rounded-full bg-blue-600 dark:bg-blue-400 shrink-0 shadow-xs ring-2 ring-blue-500/20"
                 title="Unread article"
                 aria-label="Unread"
               />
+            ) : (
+              <span
+                className="size-1.5 rounded-full bg-muted-foreground/40 shrink-0"
+                title="Read article"
+                aria-label="Read"
+              />
             )}
-            <span className="flex items-center gap-1 font-semibold text-foreground">
-              <Globe className="size-3 text-muted-foreground" />
+            <span className="flex items-center gap-1.5 font-semibold text-foreground tracking-tight">
+              <Globe className="size-3.5 text-muted-foreground" />
               {article.sourceName}
             </span>
-            <span>•</span>
-            <time dateTime={article.publishedAt}>{formattedDate}</time>
+            <span className="text-muted-foreground/40">•</span>
+            <time
+              dateTime={article.publishedAt}
+              className="flex items-center gap-1 text-[11px] text-muted-foreground"
+            >
+              <Calendar className="size-3 opacity-70" />
+              {formattedDate}
+            </time>
             {article.author && (
               <>
-                <span>•</span>
-                <span className="truncate max-w-[140px]">by {article.author}</span>
+                <span className="text-muted-foreground/40 hidden sm:inline">•</span>
+                <span className="truncate max-w-[140px] text-[11px] text-muted-foreground/80 hidden sm:inline">
+                  by {article.author}
+                </span>
               </>
             )}
           </div>
@@ -78,7 +99,7 @@ export function ArticleCard({
                 title={article.isRead ? "Mark as unread" : "Mark as read"}
                 onClick={() => onToggleRead(article.id)}
                 className={cn(
-                  "size-7 text-muted-foreground hover:text-foreground",
+                  "size-7 text-muted-foreground/80 hover:text-foreground hover:bg-muted/70",
                   article.isRead && "text-emerald-600 dark:text-emerald-400"
                 )}
               >
@@ -94,7 +115,7 @@ export function ArticleCard({
                 title={article.isSaved ? "Remove from saved" : "Save article"}
                 onClick={() => onToggleSave(article.id)}
                 className={cn(
-                  "size-7 text-muted-foreground hover:text-foreground",
+                  "size-7 text-muted-foreground/80 hover:text-foreground hover:bg-muted/70",
                   article.isSaved && "text-amber-500 hover:text-amber-600"
                 )}
               >
@@ -115,7 +136,7 @@ export function ArticleCard({
               className={buttonVariants({
                 variant: "ghost",
                 size: "icon-xs",
-                className: "size-7 text-muted-foreground hover:text-foreground",
+                className: "size-7 text-muted-foreground/80 hover:text-foreground hover:bg-muted/70",
               })}
             >
               <ExternalLink className="size-3.5" />
@@ -130,25 +151,27 @@ export function ArticleCard({
             href={article.originalUrl}
             target="_blank"
             rel="noopener noreferrer nofollow"
-            className="hover:underline underline-offset-2"
+            className="hover:text-primary transition-colors hover:underline underline-offset-3"
           >
             {article.title}
           </a>
         </h3>
 
         {/* Snippet */}
-        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground sm:text-sm leading-relaxed">
-          {article.description}
-        </p>
+        {article.description && (
+          <p className="mt-2 line-clamp-2 text-xs text-muted-foreground sm:text-sm leading-relaxed">
+            {article.description}
+          </p>
+        )}
 
         {/* Footer Keyword & Topic Badges */}
         {(article.matchedKeywords?.length || article.topics?.length) ? (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5 pt-1">
+          <div className="mt-3.5 flex flex-wrap items-center gap-1.5 pt-1">
             {article.matchedKeywords?.map((kw) => (
               <Badge
                 key={kw}
                 variant="secondary"
-                className="text-[10px] py-0 px-2 font-normal border border-primary/20 bg-primary/5 text-primary"
+                className="text-[10px] py-0 px-2 font-medium border border-primary/20 bg-primary/8 text-primary transition-colors hover:bg-primary/15"
               >
                 #{kw}
               </Badge>
@@ -157,7 +180,7 @@ export function ArticleCard({
               <Badge
                 key={topic}
                 variant="outline"
-                className="text-[10px] py-0 px-2 font-normal text-muted-foreground"
+                className="text-[10px] py-0 px-2 font-normal text-muted-foreground border-border/70"
               >
                 {topic}
               </Badge>

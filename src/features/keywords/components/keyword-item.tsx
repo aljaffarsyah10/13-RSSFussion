@@ -23,29 +23,29 @@ export function KeywordItem({
   return (
     <Card
       className={cn(
-        "border border-border bg-card transition-all hover:border-foreground/20",
-        !keyword.enabled && "opacity-60 bg-muted/20"
+        "border border-border/80 bg-card/90 transition-all duration-200 hover:border-primary/40 hover:shadow-xs",
+        !keyword.enabled && "opacity-60 bg-muted/20 border-border/40"
       )}
     >
       <CardContent className="flex items-center justify-between p-3.5 sm:p-4">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground">
-            <Tag className="size-3.5" />
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex size-7.5 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-secondary/80 text-foreground">
+            <Tag className="size-3.5 text-muted-foreground" />
           </div>
           <div className="min-w-0 space-y-0.5">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm text-foreground truncate">
+              <span className="font-semibold text-sm text-foreground tracking-tight truncate">
                 {keyword.keyword}
               </span>
               {!keyword.enabled && (
-                <Badge variant="outline" className="text-[10px] py-0 px-1 text-muted-foreground">
+                <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-muted-foreground border-border/70">
                   Disabled
                 </Badge>
               )}
             </div>
             {keyword.topicName && (
               <p className="text-[11px] text-muted-foreground truncate">
-                in {keyword.topicName}
+                in <span className="font-medium text-foreground/80">{keyword.topicName}</span>
               </p>
             )}
           </div>
@@ -58,10 +58,10 @@ export function KeywordItem({
             title={keyword.enabled ? "Disable keyword" : "Enable keyword"}
             onClick={() => onToggleEnabled(keyword.id)}
             className={cn(
-              "size-7",
+              "size-7.5 hover:bg-muted/70",
               keyword.enabled
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-muted-foreground"
+                ? "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             <Power className="size-3.5" />
@@ -79,7 +79,7 @@ export function KeywordItem({
                 variant="ghost"
                 size="icon-xs"
                 title="Delete keyword"
-                className="size-7 text-muted-foreground hover:text-destructive"
+                className="size-7.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
               >
                 <Trash2 className="size-3.5" />
                 <span className="sr-only">Delete</span>

@@ -14,6 +14,7 @@ import {
   Rss,
   ExternalLink,
   User,
+  Sparkles,
 } from "lucide-react";
 import {
   Sidebar,
@@ -90,30 +91,30 @@ export function AppSidebar() {
     : "Free Plan";
 
   return (
-    <Sidebar className="border-r border-border">
-      <SidebarHeader className="border-b border-border/60 px-4 py-3">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
+    <Sidebar className="border-r border-border/80 bg-sidebar/95 backdrop-blur-md">
+      <SidebarHeader className="border-b border-border/60 px-4 py-3.5">
+        <Link href="/dashboard" className="flex items-center gap-2.5 group">
+          <div className="flex size-7.5 items-center justify-center rounded-lg bg-foreground text-background shadow-xs transition-transform duration-200 group-hover:scale-105">
             <Rss className="size-4" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-bold tracking-tight text-foreground">
+            <span className="text-sm font-bold tracking-tight text-foreground font-heading">
               RSSFusion
             </span>
-            <span className="text-[10px] text-muted-foreground font-medium">
+            <span className="text-[10px] text-muted-foreground font-medium tracking-tight">
               Information Intelligence
             </span>
           </div>
         </Link>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 py-3">
+      <SidebarContent className="px-2.5 py-4">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase px-2">
+          <SidebarGroupLabel className="text-[11px] font-semibold tracking-wider text-muted-foreground/80 uppercase px-2 mb-1">
             Workspace
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1">
               {navigationItems.map((item) => {
                 const isActive = item.exact
                   ? pathname === item.href
@@ -125,10 +126,10 @@ export function AppSidebar() {
                       render={<Link href={item.href} />}
                       isActive={isActive}
                       className={cn(
-                        "gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
+                        "gap-3 rounded-lg px-2.5 py-2 text-xs font-medium transition-all duration-150",
                         isActive
-                          ? "bg-secondary text-foreground font-semibold"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                          : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
                       )}
                     >
                       <item.icon className="size-4 shrink-0" />
@@ -142,19 +143,22 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-border/60 p-3 space-y-3">
+      <SidebarFooter className="border-t border-border/60 p-3 space-y-3 bg-muted/10">
         {/* Quota Progress Pill */}
-        <div className="rounded-lg border border-border bg-card/60 p-3">
+        <div className="rounded-xl border border-border/80 bg-card/80 p-3 shadow-2xs">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-foreground">{planLabel}</span>
-            <Badge variant="outline" className="text-[10px] py-0 px-1.5">
+            <span className="font-semibold text-foreground text-[11px] flex items-center gap-1">
+              <Sparkles className="size-3 text-amber-500" />
+              {planLabel}
+            </span>
+            <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-border/70 font-mono">
               {sourcesUsed} / {sourcesMax}
             </Badge>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Sources connected
+            Sources capacity used
           </p>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+          <div className="mt-2 h-1.5 w-full rounded-full bg-secondary/80 overflow-hidden">
             <div
               className="h-full bg-primary rounded-full transition-all duration-300"
               style={{ width: `${percentage}%` }}
@@ -163,20 +167,20 @@ export function AppSidebar() {
         </div>
 
         {/* User row */}
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <div className="flex items-center justify-between px-1 pt-0.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border/60 bg-secondary text-muted-foreground">
               <User className="size-3.5" />
             </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-medium text-foreground">Workspace User</span>
-              <span className="text-[10px] text-muted-foreground">{planLabel}</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-medium text-foreground truncate">Workspace User</span>
+              <span className="text-[10px] text-muted-foreground truncate">{planLabel}</span>
             </div>
           </div>
           <Link
             href="/"
-            title="Public Site"
-            className="text-muted-foreground hover:text-foreground"
+            title="Visit public landing page"
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
           >
             <ExternalLink className="size-3.5" />
           </Link>

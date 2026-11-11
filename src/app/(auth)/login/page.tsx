@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { authApi } from "@/lib/api/client";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, ArrowRight, Rss } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,9 +35,12 @@ export default function LoginPage() {
   };
 
   return (
-    <Card className="border-border">
-      <CardHeader className="space-y-1 pb-4">
-        <CardTitle className="text-lg font-semibold">Welcome back</CardTitle>
+    <Card className="border border-border/80 bg-card/95 shadow-lg backdrop-blur-md">
+      <CardHeader className="space-y-1.5 pb-4 text-center">
+        <div className="mx-auto flex size-10 items-center justify-center rounded-xl bg-foreground text-background shadow-xs mb-2">
+          <Rss className="size-5" />
+        </div>
+        <CardTitle className="text-xl font-bold tracking-tight font-heading">Welcome back</CardTitle>
         <CardDescription className="text-xs">
           Sign in to access your monitored intelligence feeds
         </CardDescription>
@@ -45,14 +48,14 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           {error && (
-            <div className="flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/20 p-2.5 text-xs text-destructive">
+            <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-2.5 text-xs text-destructive">
               <AlertCircle className="size-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-xs">Email</Label>
+            <Label htmlFor="email" className="text-xs font-medium">Email address</Label>
             <Input
               id="email"
               type="email"
@@ -60,13 +63,13 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
-              className="h-9 text-xs"
+              className="h-9 text-xs bg-background/80"
               disabled={loading}
             />
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password" className="text-xs">Password</Label>
+              <Label htmlFor="password" className="text-xs font-medium">Password</Label>
             </div>
             <Input
               id="password"
@@ -74,15 +77,15 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="h-9 text-xs"
+              className="h-9 text-xs bg-background/80"
               disabled={loading}
             />
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col gap-3 pt-2">
+        <CardFooter className="flex flex-col gap-3.5 pt-2">
           <Button
             type="submit"
-            className="w-full h-9 text-xs cursor-pointer"
+            className="w-full h-9 text-xs cursor-pointer shadow-xs gap-1.5"
             disabled={loading}
           >
             {loading ? (
@@ -91,12 +94,15 @@ export default function LoginPage() {
                 Signing in...
               </>
             ) : (
-              "Sign In"
+              <>
+                <span>Sign In</span>
+                <ArrowRight className="size-3.5" />
+              </>
             )}
           </Button>
           <p className="text-center text-xs text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <Link href="/register" className="font-medium text-foreground underline underline-offset-4">
+            <Link href="/register" className="font-semibold text-foreground hover:underline underline-offset-4">
               Create account
             </Link>
           </p>
