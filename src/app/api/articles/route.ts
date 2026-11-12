@@ -12,6 +12,9 @@ export async function GET(request: Request) {
     const sourceId = searchParams.get("sourceId") || undefined;
     const topicId = searchParams.get("topicId") || undefined;
     const readStatus = (searchParams.get("readStatus") as "all" | "unread" | "read") || undefined;
+    const savedOnly = searchParams.get("savedOnly") === "true";
+    const timeframe = (searchParams.get("timeframe") as "all" | "today" | "3days" | "7days" | "30days") || undefined;
+    const sort = (searchParams.get("sort") as "newest" | "oldest" | "title-asc" | "title-desc") || undefined;
     const cursor = searchParams.get("cursor") || undefined;
     const limit = searchParams.get("limit") ? parseInt(searchParams.get("limit")!, 10) : 20;
 
@@ -20,6 +23,9 @@ export async function GET(request: Request) {
       sourceId,
       topicId,
       readStatus,
+      savedOnly,
+      timeframe,
+      sort,
       cursor,
       limit,
     });

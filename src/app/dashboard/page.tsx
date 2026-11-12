@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ArticleCard } from "@/features/articles/components/article-card";
+import { ArticleReaderDialog } from "@/features/articles/components/article-reader-dialog";
 import { SourceFormDialog } from "@/features/sources/components/source-form-dialog";
 import { TrendAnalyticsCard } from "@/features/analytics/components/trend-analytics-card";
 import { SourceFormValues } from "@/lib/validation/schemas";
@@ -18,6 +19,7 @@ import { Globe, Newspaper, FolderTree, Bookmark, Rss, ArrowRight } from "lucide-
 export default function DashboardOverviewPage() {
   const [stats, setStats] = React.useState<DashboardStats | null>(null);
   const [recentArticles, setRecentArticles] = React.useState<Article[]>([]);
+  const [activeReaderArticle, setActiveReaderArticle] = React.useState<Article | null>(null);
   const [quota, setQuota] = React.useState<QuotaUsage | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -215,6 +217,7 @@ export default function DashboardOverviewPage() {
                   article={article}
                   onToggleSave={handleToggleSave}
                   onToggleRead={handleToggleRead}
+                  onOpenReader={(a) => setActiveReaderArticle(a)}
                 />
               ))}
             </div>
@@ -249,6 +252,15 @@ export default function DashboardOverviewPage() {
 
       {/* Ingestion & Topic Trend Analytics */}
       <TrendAnalyticsCard />
+
+      {/* Reader Modal */}
+      <ArticleReaderDialog
+        article={activeReaderArticle}
+        isOpen={Boolean(activeReaderArticle)}
+        onClose={() => setActiveReaderArticle(null)}
+        onToggleSave={handleToggleSave}
+        onToggleRead={handleToggleRead}
+      />
     </div>
   );
 }

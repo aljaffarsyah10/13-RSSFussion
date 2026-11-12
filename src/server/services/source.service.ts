@@ -216,3 +216,25 @@ export async function refreshSource(userId: string, sourceId: string) {
   if (error) throw error;
   return mapSourceRow(data as SourceDbRow);
 }
+
+export async function refreshAllSources(
+  userId: string
+): Promise<{ refreshedCount: number; message: string }> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("rss_sources")
+    .update({
+      next_fetch_at: new Date().toISOString(),
+      locked_until: null,
+    })
+    .eq("user_id", userId)
+    .eq("enabled", true)
+    .select("id");
+
+  if (error) throw error;
+  const count = data ? data.length : 0;
+  return {
+    refreshedCount: count,
+    message: count > 0 ? `Scheduled refresh for ${count} active feed(s)` : "No active feeds to refresh",
+  };
+}

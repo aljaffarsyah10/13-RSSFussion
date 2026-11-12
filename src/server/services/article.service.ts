@@ -6,6 +6,9 @@ export interface ArticleFilters {
   sourceId?: string;
   topicId?: string;
   readStatus?: "all" | "unread" | "read";
+  savedOnly?: boolean;
+  timeframe?: "all" | "today" | "3days" | "7days" | "30days";
+  sort?: "newest" | "oldest" | "title-asc" | "title-desc";
   limit?: number;
   cursor?: string; // ISO date string of published_at for pagination
 }
@@ -82,9 +85,10 @@ export async function listArticles(userId: string, filters: ArticleFilters = {})
   const supabase = await createServerSupabaseClient();
   const limit = Math.min(Math.max(filters.limit || 20, 1), 50);
 
-  // Over-fetch when in-memory post-filters (topicId / unread) are active so pagination stays full
+  // Over-fetch when in-memory post-filters (topicId / unread / savedOnly) are active so pagination stays full
   const needsPostFilter =
     Boolean(filters.topicId) ||
+    Boolean(filters.savedOnly) ||
     filters.readStatus === "unread" ||
     filters.readStatus === "read";
   const fetchLimit = needsPostFilter ? Math.min(limit * 3, 100) : limit;
@@ -118,9 +122,35 @@ export async function listArticles(userId: string, filters: ArticleFilters = {})
       )
     `
     )
-    .eq("rss_sources.user_id", userId)
-    .order("published_at", { ascending: false })
-    .limit(fetchLimit);
+    .eq("rss_sources.user_id", userId);
+
+  // Sorting
+  if (filters.sort === "oldest") {
+    query = query.order("published_at", { ascending: true });
+  } else if (filters.sort === "title-asc") {
+    query = query.order("title", { ascending: true });
+  } else if (filters.sort === "title-desc") {
+    query = query.order("title", { ascending: false });
+  } else {
+    query = query.order("published_at", { ascending: false });
+  }
+
+  query = query.limit(fetchLimit);
+
+  // Timeframe filter
+  if (filters.timeframe && filters.timeframe !== "all") {
+    const now = Date.now();
+    let msAgo = 0;
+    if (filters.timeframe === "today") msAgo = 24 * 60 * 60 * 1000;
+    else if (filters.timeframe === "3days") msAgo = 3 * 24 * 60 * 60 * 1000;
+    else if (filters.timeframe === "7days") msAgo = 7 * 24 * 60 * 60 * 1000;
+    else if (filters.timeframe === "30days") msAgo = 30 * 24 * 60 * 60 * 1000;
+
+    if (msAgo > 0) {
+      const minIso = new Date(now - msAgo).toISOString();
+      query = query.gte("published_at", minIso);
+    }
+  }
 
   if (filters.sourceId) {
     query = query.eq("source_id", filters.sourceId);
@@ -134,7 +164,11 @@ export async function listArticles(userId: string, filters: ArticleFilters = {})
   }
 
   if (filters.cursor) {
-    query = query.lt("published_at", filters.cursor);
+    if (filters.sort === "oldest") {
+      query = query.gt("published_at", filters.cursor);
+    } else {
+      query = query.lt("published_at", filters.cursor);
+    }
   }
 
   const { data, error } = await query;
@@ -174,6 +208,10 @@ export async function listArticles(userId: string, filters: ArticleFilters = {})
     mapped = mapped.filter(
       (a) => a._topicIds.includes(filters.topicId!) || a.topics.includes(filters.topicId!)
     );
+  }
+
+  if (filters.savedOnly) {
+    mapped = mapped.filter((a) => a.isSaved);
   }
 
   if (filters.readStatus === "unread") {
@@ -249,6 +287,88 @@ export async function unsaveArticle(userId: string, articleId: string) {
 
   if (error) throw error;
   return { success: true };
+}
+
+export async function bulkMarkArticlesRead(
+  userId: string,
+  articleIds: string[],
+  isRead = true
+): Promise<{ affectedCount: number }> {
+  if (!articleIds.length) return { affectedCount: 0 };
+  const supabase = await createServerSupabaseClient();
+
+  if (isRead) {
+    const payload = articleIds.map((id) => ({
+      user_id: userId,
+      article_id: id,
+    }));
+    const { error } = await supabase
+      .from("article_read_status")
+      .upsert(payload, { onConflict: "user_id,article_id" });
+
+    if (error) throw error;
+    return { affectedCount: articleIds.length };
+  } else {
+    const { error } = await supabase
+      .from("article_read_status")
+      .delete()
+      .eq("user_id", userId)
+      .in("article_id", articleIds);
+
+    if (error) throw error;
+    return { affectedCount: articleIds.length };
+  }
+}
+
+export async function bulkSaveArticles(
+  userId: string,
+  articleIds: string[],
+  isSave = true
+): Promise<{ affectedCount: number }> {
+  if (!articleIds.length) return { affectedCount: 0 };
+  const supabase = await createServerSupabaseClient();
+
+  if (isSave) {
+    const payload = articleIds.map((id) => ({
+      user_id: userId,
+      article_id: id,
+    }));
+    const { error } = await supabase
+      .from("saved_articles")
+      .upsert(payload, { onConflict: "user_id,article_id" });
+
+    if (error) throw error;
+    return { affectedCount: articleIds.length };
+  } else {
+    const { error } = await supabase
+      .from("saved_articles")
+      .delete()
+      .eq("user_id", userId)
+      .in("article_id", articleIds);
+
+    if (error) throw error;
+    return { affectedCount: articleIds.length };
+  }
+}
+
+export async function markAllArticlesRead(
+  userId: string,
+  options?: { sourceId?: string; topicId?: string }
+): Promise<{ markedCount: number }> {
+  const articles = await listArticles(userId, {
+    sourceId: options?.sourceId,
+    topicId: options?.topicId,
+    readStatus: "unread",
+    limit: 100,
+  });
+
+  const unreadIds = articles.filter((a) => !a.isRead).map((a) => a.id);
+  if (!unreadIds.length) {
+    return { markedCount: 0 };
+  }
+
+  await bulkMarkArticlesRead(userId, unreadIds, true);
+  return { markedCount: unreadIds.length };
 }
 
 interface SavedArticleRow {

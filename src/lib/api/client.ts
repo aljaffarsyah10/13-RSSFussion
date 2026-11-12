@@ -186,6 +186,14 @@ export const sourcesApi = {
       method: "POST",
     }),
 
+  refreshAll: () =>
+    apiRequest<{ success: boolean; data: { refreshedCount: number; message: string } }>(
+      "/api/sources/refresh-all",
+      {
+        method: "POST",
+      }
+    ),
+
   validate: (feedUrl: string) =>
     apiRequest<{
       valid: boolean;
@@ -205,20 +213,28 @@ export interface ArticlesResponse {
   nextCursor?: string | null;
 }
 
+export interface ArticleListParams {
+  q?: string;
+  sourceId?: string;
+  topicId?: string;
+  readStatus?: "all" | "unread" | "read";
+  savedOnly?: boolean;
+  timeframe?: "all" | "today" | "3days" | "7days" | "30days";
+  sort?: "newest" | "oldest" | "title-asc" | "title-desc";
+  cursor?: string;
+  limit?: number;
+}
+
 export const articlesApi = {
-  list: (params?: {
-    q?: string;
-    sourceId?: string;
-    topicId?: string;
-    readStatus?: "all" | "unread" | "read";
-    cursor?: string;
-    limit?: number;
-  }) => {
+  list: (params?: ArticleListParams) => {
     const searchParams = new URLSearchParams();
     if (params?.q) searchParams.set("q", params.q);
     if (params?.sourceId) searchParams.set("sourceId", params.sourceId);
     if (params?.topicId) searchParams.set("topicId", params.topicId);
     if (params?.readStatus && params.readStatus !== "all") searchParams.set("readStatus", params.readStatus);
+    if (params?.savedOnly) searchParams.set("savedOnly", "true");
+    if (params?.timeframe && params.timeframe !== "all") searchParams.set("timeframe", params.timeframe);
+    if (params?.sort && params.sort !== "newest") searchParams.set("sort", params.sort);
     if (params?.cursor) searchParams.set("cursor", params.cursor);
     if (params?.limit) searchParams.set("limit", params.limit.toString());
 
@@ -243,6 +259,40 @@ export const articlesApi = {
     apiRequest<{ success: boolean }>(`/api/saved/${articleId}`, {
       method: "DELETE",
     }),
+
+  bulk: (action: "markRead" | "markUnread" | "save" | "unsave", articleIds: string[]) =>
+    apiRequest<{ success: boolean; affectedCount: number }>("/api/articles/bulk", {
+      method: "POST",
+      body: JSON.stringify({ action, articleIds }),
+    }),
+
+  markAllRead: (filters?: { sourceId?: string; topicId?: string }) =>
+    apiRequest<{ success: boolean; affectedCount: number }>("/api/articles/bulk", {
+      method: "POST",
+      body: JSON.stringify({ action: "markAllRead", ...filters }),
+    }),
+
+  getExportUrl: (params?: {
+    format?: "csv" | "json" | "markdown";
+    savedOnly?: boolean;
+    q?: string;
+    sourceId?: string;
+    topicId?: string;
+    readStatus?: "all" | "unread" | "read";
+    timeframe?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.format) searchParams.set("format", params.format);
+    if (params?.savedOnly) searchParams.set("savedOnly", "true");
+    if (params?.q) searchParams.set("q", params.q);
+    if (params?.sourceId) searchParams.set("sourceId", params.sourceId);
+    if (params?.topicId) searchParams.set("topicId", params.topicId);
+    if (params?.readStatus && params.readStatus !== "all") searchParams.set("readStatus", params.readStatus);
+    if (params?.timeframe && params.timeframe !== "all") searchParams.set("timeframe", params.timeframe);
+
+    const qs = searchParams.toString();
+    return qs ? `/api/articles/export?${qs}` : "/api/articles/export";
+  },
 };
 
 export const savedArticlesApi = {

@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ArticleCard } from "@/features/articles/components/article-card";
 import { ArticleFilters } from "@/features/articles/components/article-filters";
+import { ArticleReaderDialog } from "@/features/articles/components/article-reader-dialog";
 import { Button } from "@/components/ui/button";
 import { articlesApi, sourcesApi, topicsApi } from "@/lib/api/client";
 import { Article, RssSource, Topic } from "@/types/models";
@@ -22,7 +23,17 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
   const [selectedSourceId, setSelectedSourceId] = React.useState("");
   const [selectedTopic, setSelectedTopic] = React.useState("");
   const [readStatus, setReadStatus] = React.useState<"all" | "unread" | "read">("all");
+  const [savedOnly, setSavedOnly] = React.useState(false);
+  const [timeframe, setTimeframe] = React.useState<"all" | "today" | "3days" | "7days" | "30days">("all");
+  const [sort, setSort] = React.useState<"newest" | "oldest" | "title-asc">("newest");
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
+
+  // Selection & bulk actions
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [isMarkingAllRead, setIsMarkingAllRead] = React.useState(false);
+
+  // Reader Modal
+  const [activeReaderArticle, setActiveReaderArticle] = React.useState<Article | null>(null);
 
   const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -59,6 +70,9 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
           sourceId: selectedSourceId || undefined,
           topicId: selectedTopic || undefined,
           readStatus: readStatus !== "all" ? readStatus : undefined,
+          savedOnly: savedOnly || undefined,
+          timeframe: timeframe !== "all" ? timeframe : undefined,
+          sort: sort !== "newest" ? sort : undefined,
           limit: 15,
         });
 
@@ -66,6 +80,7 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
           const items = res?.data || (Array.isArray(res) ? (res as unknown as Article[]) : []);
           setArticles(items);
           setNextCursor(res?.nextCursor ?? null);
+          setSelectedIds(new Set());
           setError(null);
         }
       } catch (err: unknown) {
@@ -84,7 +99,7 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, selectedSourceId, selectedTopic, readStatus, reloadToken]);
+  }, [debouncedQuery, selectedSourceId, selectedTopic, readStatus, savedOnly, timeframe, sort, reloadToken]);
 
   const handleRetry = () => {
     setIsLoading(true);
@@ -101,6 +116,9 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
         sourceId: selectedSourceId || undefined,
         topicId: selectedTopic || undefined,
         readStatus: readStatus !== "all" ? readStatus : undefined,
+        savedOnly: savedOnly || undefined,
+        timeframe: timeframe !== "all" ? timeframe : undefined,
+        sort: sort !== "newest" ? sort : undefined,
         cursor: nextCursor,
         limit: 15,
       });
@@ -125,6 +143,9 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
     setArticles((prev) =>
       prev.map((a) => (a.id === articleId ? { ...a, isSaved: newSaved } : a))
     );
+    if (activeReaderArticle?.id === articleId) {
+      setActiveReaderArticle((prev) => prev ? { ...prev, isSaved: newSaved } : null);
+    }
 
     try {
       if (newSaved) {
@@ -137,6 +158,9 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
       setArticles((prev) =>
         prev.map((a) => (a.id === articleId ? { ...a, isSaved: target.isSaved } : a))
       );
+      if (activeReaderArticle?.id === articleId) {
+        setActiveReaderArticle((prev) => prev ? { ...prev, isSaved: target.isSaved } : null);
+      }
     }
   };
 
@@ -150,6 +174,9 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
     setArticles((prev) =>
       prev.map((a) => (a.id === articleId ? { ...a, isRead: newRead } : a))
     );
+    if (activeReaderArticle?.id === articleId) {
+      setActiveReaderArticle((prev) => prev ? { ...prev, isRead: newRead } : null);
+    }
 
     try {
       await articlesApi.markRead(articleId, newRead);
@@ -158,14 +185,85 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
       setArticles((prev) =>
         prev.map((a) => (a.id === articleId ? { ...a, isRead: target.isRead } : a))
       );
+      if (activeReaderArticle?.id === articleId) {
+        setActiveReaderArticle((prev) => prev ? { ...prev, isRead: target.isRead } : null);
+      }
     }
   };
+
+  const handleToggleSelect = (articleId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(articleId)) {
+        next.delete(articleId);
+      } else {
+        next.add(articleId);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedIds.size === articles.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(articles.map((a) => a.id)));
+    }
+  };
+
+  const handleBulkAction = async (action: "markRead" | "markUnread" | "save" | "unsave") => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+
+    // Optimistic local update
+    if (action === "markRead") {
+      setArticles((prev) => prev.map((a) => ids.includes(a.id) ? { ...a, isRead: true } : a));
+    } else if (action === "markUnread") {
+      setArticles((prev) => prev.map((a) => ids.includes(a.id) ? { ...a, isRead: false } : a));
+    } else if (action === "save") {
+      setArticles((prev) => prev.map((a) => ids.includes(a.id) ? { ...a, isSaved: true } : a));
+    } else if (action === "unsave") {
+      setArticles((prev) => prev.map((a) => ids.includes(a.id) ? { ...a, isSaved: false } : a));
+    }
+
+    setSelectedIds(new Set());
+
+    try {
+      await articlesApi.bulk(action, ids);
+    } catch {
+      setReloadToken((prev) => prev + 1);
+    }
+  };
+
+  const handleMarkAllFeedRead = async () => {
+    setIsMarkingAllRead(true);
+    try {
+      await articlesApi.markAllRead({
+        sourceId: selectedSourceId || undefined,
+        topicId: selectedTopic || undefined,
+      });
+      setArticles((prev) => prev.map((a) => ({ ...a, isRead: true })));
+    } catch (err: unknown) {
+      console.error("Failed to mark all read", err);
+    } finally {
+      setIsMarkingAllRead(false);
+    }
+  };
+
+  const exportUrl = articlesApi.getExportUrl({
+    q: debouncedQuery || undefined,
+    sourceId: selectedSourceId || undefined,
+    topicId: selectedTopic || undefined,
+    readStatus: readStatus !== "all" ? readStatus : undefined,
+    savedOnly: savedOnly || undefined,
+    timeframe: timeframe !== "all" ? timeframe : undefined,
+  });
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Articles Feed"
-        description="Browse and filter aggregated stories from your followed publications."
+        description="Browse, filter, and analyze aggregated intelligence from your publications."
       />
 
       {/* Filter toolbar */}
@@ -190,9 +288,31 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
           setIsLoading(true);
           setReadStatus(st);
         }}
+        savedOnly={savedOnly}
+        onSavedOnlyChange={(saved) => {
+          setIsLoading(true);
+          setSavedOnly(saved);
+        }}
+        timeframe={timeframe}
+        onTimeframeChange={(tf) => {
+          setIsLoading(true);
+          setTimeframe(tf);
+        }}
+        sort={sort}
+        onSortChange={(s) => {
+          setIsLoading(true);
+          setSort(s);
+        }}
         availableSources={sources.map((s) => ({ id: s.id, name: s.name }))}
         availableTopics={topics.map((t) => ({ id: t.id, name: t.name }))}
         totalCount={articles.length}
+        selectedCount={selectedIds.size}
+        onToggleSelectAll={handleToggleSelectAll}
+        isAllSelected={articles.length > 0 && selectedIds.size === articles.length}
+        onBulkAction={handleBulkAction}
+        onMarkAllFeedRead={handleMarkAllFeedRead}
+        isMarkingAllRead={isMarkingAllRead}
+        exportUrl={exportUrl}
       />
 
       {/* Body state */}
@@ -224,6 +344,9 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
                   setSelectedSourceId("");
                   setSelectedTopic("");
                   setReadStatus("all");
+                  setSavedOnly(false);
+                  setTimeframe("all");
+                  setSort("newest");
                 }
           }
         />
@@ -233,8 +356,12 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
             <ArticleCard
               key={article.id}
               article={article}
+              selectable={true}
+              isSelected={selectedIds.has(article.id)}
+              onToggleSelect={handleToggleSelect}
               onToggleSave={handleToggleSave}
               onToggleRead={handleToggleRead}
+              onOpenReader={(a) => setActiveReaderArticle(a)}
             />
           ))}
 
@@ -245,7 +372,7 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
                 size="sm"
                 onClick={handleLoadMore}
                 disabled={isLoadingMore}
-                className="h-9 px-6 text-xs gap-1.5 cursor-pointer"
+                className="h-9 px-6 text-xs gap-1.5 cursor-pointer shadow-2xs"
               >
                 {isLoadingMore && <Loader2 className="size-3.5 animate-spin" />}
                 <span>
@@ -256,6 +383,15 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
           )}
         </div>
       )}
+
+      {/* Reader Modal */}
+      <ArticleReaderDialog
+        article={activeReaderArticle}
+        isOpen={Boolean(activeReaderArticle)}
+        onClose={() => setActiveReaderArticle(null)}
+        onToggleSave={handleToggleSave}
+        onToggleRead={handleToggleRead}
+      />
     </div>
   );
 }
@@ -273,7 +409,7 @@ export default function ArticlesPage() {
         <div className="space-y-6">
           <PageHeader
             title="Articles Feed"
-            description="Browse and filter aggregated stories from your followed publications."
+            description="Browse, filter, and analyze aggregated intelligence from your publications."
           />
           <LoadingSkeleton count={4} />
         </div>
