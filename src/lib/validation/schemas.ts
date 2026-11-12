@@ -67,13 +67,16 @@ export const notificationSettingsSchema = z.object({
 export type NotificationSettingsValues = z.infer<typeof notificationSettingsSchema>;
 
 export const loginSchema = z.object({
-  email: z.string().trim().email("Valid email is required"),
-  password: z.string().min(1, "Password is required"),
+  email: z.string().trim().email("Valid email is required").max(100),
+  password: z.string().min(1, "Password is required").max(128),
 });
 
 export const registerSchema = z.object({
-  email: z.string().trim().email("Valid email is required"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  email: z.string().trim().email("Valid email is required").max(100),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password must not exceed 128 characters"),
   fullName: z.string().trim().max(100).optional(),
 });
 

@@ -67,6 +67,21 @@ export function handleApiError(err: unknown) {
     );
   }
 
+  // Prevent data exposure & reconnaissance: sanitize internal database codes or sensitive syntax errors
+  const isInternalDbCode =
+    code && (/^(?:42|08|XX|28|53|54|58)/.test(code) || (code.length === 5 && code !== "P0001"));
+  const isSensitiveDbMessage =
+    /relation.*does not exist|syntax error at or near|violates foreign key|column.*does not exist|password authentication failed/i.test(
+      message
+    );
+
+  if (isInternalDbCode || isSensitiveDbMessage) {
+    return NextResponse.json(
+      { error: { code: "INTERNAL_ERROR", message: "An unexpected database error occurred" } },
+      { status: 500 }
+    );
+  }
+
   return NextResponse.json(
     { error: { code: "BAD_REQUEST", message } },
     { status: 400 }

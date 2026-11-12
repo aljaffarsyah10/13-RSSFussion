@@ -29,9 +29,10 @@ export async function POST(request: Request) {
     });
 
     if (error) {
+      // Prevent user enumeration attacks by returning a consistent generic error
       return NextResponse.json(
-        { error: { code: "AUTH_FAILED", message: error.message } },
-        { status: 400 }
+        { error: { code: "AUTH_FAILED", message: "Invalid email or password" } },
+        { status: 401 }
       );
     }
 
