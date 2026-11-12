@@ -13,6 +13,9 @@ import {
   ArrowUpDown,
   Clock,
   Loader2,
+  LayoutGrid,
+  LayoutList,
+  Keyboard,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -45,6 +48,12 @@ interface ArticleFiltersProps {
   onMarkAllFeedRead?: () => void;
   isMarkingAllRead?: boolean;
   exportUrl?: string;
+
+  // View density & shortcuts
+  density?: "comfortable" | "compact";
+  onDensityChange?: (d: "comfortable" | "compact") => void;
+  onOpenShortcuts?: () => void;
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export function ArticleFilters({
@@ -72,6 +81,10 @@ export function ArticleFilters({
   onMarkAllFeedRead,
   isMarkingAllRead = false,
   exportUrl,
+  density = "comfortable",
+  onDensityChange,
+  onOpenShortcuts,
+  searchInputRef,
 }: ArticleFiltersProps) {
   const [showExportMenu, setShowExportMenu] = React.useState(false);
   const [showMarkConfirm, setShowMarkConfirm] = React.useState(false);
@@ -111,9 +124,10 @@ export function ArticleFilters({
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
+              ref={searchInputRef}
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search headline or keywords..."
+              placeholder="Search headline or keywords... (Press / to focus)"
               className="h-8.5 pl-8 pr-7 text-xs bg-muted/30 border-border/70 focus-visible:bg-background transition-colors"
             />
             {searchQuery && (
@@ -310,6 +324,43 @@ export function ArticleFilters({
                   </Button>
                 )}
               </>
+            )}
+
+            {/* View Density Switcher */}
+            {onDensityChange && (
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => onDensityChange(density === "comfortable" ? "compact" : "comfortable")}
+                className="h-7 text-xs gap-1.5 cursor-pointer shadow-2xs"
+                title={density === "comfortable" ? "Switch to Compact List View" : "Switch to Card View"}
+              >
+                {density === "comfortable" ? (
+                  <>
+                    <LayoutList className="size-3 text-muted-foreground" />
+                    <span className="hidden sm:inline">Compact</span>
+                  </>
+                ) : (
+                  <>
+                    <LayoutGrid className="size-3 text-muted-foreground" />
+                    <span className="hidden sm:inline">Cards</span>
+                  </>
+                )}
+              </Button>
+            )}
+
+            {/* Keyboard Shortcuts Trigger */}
+            {onOpenShortcuts && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={onOpenShortcuts}
+                className="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Keyboard Shortcuts (?)"
+              >
+                <Keyboard className="size-3.5" />
+                <span className="sr-only">Keyboard Shortcuts</span>
+              </Button>
             )}
 
             {/* Export Dropdown */}

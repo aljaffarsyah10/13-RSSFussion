@@ -45,6 +45,7 @@ export function SourceFormDialog({
   const [validatedFeed, setValidatedFeed] = React.useState<{
     title?: string;
     itemCount?: number;
+    discovered?: boolean;
   } | null>(null);
 
   const isQuotaReached = currentSourceCount >= maxQuota;
@@ -61,9 +62,13 @@ export function SourceFormDialog({
     try {
       const res = await sourcesApi.validate(feedUrl);
       if (res.valid) {
+        if (res.discoveredFeedUrl) {
+          setFeedUrl(res.discoveredFeedUrl);
+        }
         setValidatedFeed({
           title: res.title,
           itemCount: res.itemCount,
+          discovered: Boolean(res.discoveredFeedUrl),
         });
         if (!name && res.title) setName(res.title);
         if (!siteUrl && res.siteUrl) setSiteUrl(res.siteUrl);
@@ -201,7 +206,9 @@ export function SourceFormDialog({
               <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-2 text-xs text-emerald-800 dark:text-emerald-300">
                 <CheckCircle2 className="size-3.5 shrink-0" />
                 <span>
-                  Valid feed confirmed ({validatedFeed.itemCount ?? 0} items detected)
+                  {validatedFeed.discovered
+                    ? `Auto-discovered RSS feed! (${validatedFeed.itemCount ?? 0} items found)`
+                    : `Valid feed confirmed (${validatedFeed.itemCount ?? 0} items detected)`}
                 </span>
               </div>
             )}

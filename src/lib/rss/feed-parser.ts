@@ -1,5 +1,5 @@
 import Parser from "rss-parser";
-import { safeFetchWithRedirects } from "./ssrf-validator";
+import { safeFetchWithRedirects, validateFeedUrl } from "./ssrf-validator";
 import {
   canonicalizeUrl,
   stripHtml,
@@ -40,6 +40,33 @@ export interface ParseFeedResult {
   etag?: string;
   lastModified?: string;
   notModified?: boolean;
+  discoveredFeedUrl?: string;
+}
+
+export function discoverFeedUrlFromHtml(html: string, baseUrl: string): string | null {
+  const match = html.match(/<link[^>]+type=["']application\/(?:rss\+xml|atom\+xml)["'][^>]*>/i);
+  if (match) {
+    const linkTag = match[0];
+    const hrefMatch = linkTag.match(/href=["']([^"']+)["']/i);
+    if (hrefMatch && hrefMatch[1]) {
+      try {
+        return new URL(hrefMatch[1].trim(), baseUrl).toString();
+      } catch {
+        // continue
+      }
+    }
+  }
+
+  const invertedMatch = html.match(/<link[^>]+href=["']([^"']+)["'][^>]+type=["']application\/(?:rss\+xml|atom\+xml)["']/i);
+  if (invertedMatch && invertedMatch[1]) {
+    try {
+      return new URL(invertedMatch[1].trim(), baseUrl).toString();
+    } catch {
+      // continue
+    }
+  }
+
+  return null;
 }
 
 export async function fetchAndParseFeed(
@@ -102,11 +129,31 @@ export async function fetchAndParseFeed(
   }
 
   // Parse RSS / Atom XML
-  const feed = await parser.parseString(xmlText);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let feed: any;
+
+  try {
+    feed = await parser.parseString(xmlText);
+  } catch (parseErr: unknown) {
+    // If parsing fails, check if the response was an HTML page with auto-discoverable RSS/Atom links
+    const discovered = discoverFeedUrlFromHtml(xmlText, feedUrl);
+    if (discovered && discovered !== feedUrl) {
+      const ssrfCheck = await validateFeedUrl(discovered);
+      if (ssrfCheck.valid) {
+        const subResult = await fetchAndParseFeed(discovered, sourceId, options);
+        return {
+          ...subResult,
+          discoveredFeedUrl: discovered,
+        };
+      }
+    }
+    throw parseErr;
+  }
 
   // Normalize items
   const nowIso = new Date().toISOString();
-  const normalizedItems: ParsedFeedItem[] = (feed.items || []).slice(0, 100).map((item) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const normalizedItems: ParsedFeedItem[] = (feed.items || []).slice(0, 100).map((item: any) => {
     const rawItem = item as Record<string, unknown>;
     const originalLink = item.link || item.guid || feedUrl;
     const canonicalLink = canonicalizeUrl(originalLink);

@@ -33,6 +33,7 @@ export async function POST(request: Request) {
         title: parsed.title,
         description: parsed.description,
         siteUrl: parsed.siteUrl,
+        discoveredFeedUrl: parsed.discoveredFeedUrl,
         itemCount: parsed.items.length,
         itemsCount: parsed.items.length,
         recentItems: parsed.items.slice(0, 3).map((item) => ({

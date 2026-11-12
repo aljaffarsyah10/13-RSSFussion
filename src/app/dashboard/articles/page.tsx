@@ -9,6 +9,8 @@ import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ArticleCard } from "@/features/articles/components/article-card";
 import { ArticleFilters } from "@/features/articles/components/article-filters";
 import { ArticleReaderDialog } from "@/features/articles/components/article-reader-dialog";
+import { KeyboardShortcutsDialog } from "@/components/shared/keyboard-shortcuts-dialog";
+import { useFeedShortcuts } from "@/hooks/use-feed-shortcuts";
 import { Button } from "@/components/ui/button";
 import { articlesApi, sourcesApi, topicsApi } from "@/lib/api/client";
 import { Article, RssSource, Topic } from "@/types/models";
@@ -28,6 +30,22 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
   const [sort, setSort] = React.useState<"newest" | "oldest" | "title-asc">("newest");
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
 
+  // Density & View
+  const [density, setDensity] = React.useState<"comfortable" | "compact">(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("rssfusion_feed_density");
+        if (saved === "compact" || saved === "comfortable") return saved;
+      } catch {
+        // ignore
+      }
+    }
+    return "comfortable";
+  });
+  const [focusedIndex, setFocusedIndex] = React.useState(0);
+  const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
+  const searchInputRef = React.useRef<HTMLInputElement | null>(null);
+
   // Selection & bulk actions
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [isMarkingAllRead, setIsMarkingAllRead] = React.useState(false);
@@ -39,6 +57,15 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [reloadToken, setReloadToken] = React.useState(0);
+
+  const handleDensityChange = (d: "comfortable" | "compact") => {
+    setDensity(d);
+    try {
+      localStorage.setItem("rssfusion_feed_density", d);
+    } catch {
+      // ignore
+    }
+  };
 
   // Debounce search query
   React.useEffect(() => {
@@ -81,6 +108,7 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
           setArticles(items);
           setNextCursor(res?.nextCursor ?? null);
           setSelectedIds(new Set());
+          setFocusedIndex(0);
           setError(null);
         }
       } catch (err: unknown) {
@@ -133,19 +161,21 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
     }
   };
 
-  const handleToggleSave = async (articleId: string) => {
+  const handleToggleSave = React.useCallback(async (articleId: string) => {
+    setArticles((prev) => {
+      const target = prev.find((a) => a.id === articleId);
+      if (!target) return prev;
+      const newSaved = !target.isSaved;
+      return prev.map((a) => (a.id === articleId ? { ...a, isSaved: newSaved } : a));
+    });
+
+    setActiveReaderArticle((prev) =>
+      prev && prev.id === articleId ? { ...prev, isSaved: !prev.isSaved } : prev
+    );
+
     const target = articles.find((a) => a.id === articleId);
     if (!target) return;
-
     const newSaved = !target.isSaved;
-
-    // Optimistic update
-    setArticles((prev) =>
-      prev.map((a) => (a.id === articleId ? { ...a, isSaved: newSaved } : a))
-    );
-    if (activeReaderArticle?.id === articleId) {
-      setActiveReaderArticle((prev) => prev ? { ...prev, isSaved: newSaved } : null);
-    }
 
     try {
       if (newSaved) {
@@ -154,44 +184,38 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
         await articlesApi.unsave(articleId);
       }
     } catch {
-      // Revert on failure
       setArticles((prev) =>
         prev.map((a) => (a.id === articleId ? { ...a, isSaved: target.isSaved } : a))
       );
-      if (activeReaderArticle?.id === articleId) {
-        setActiveReaderArticle((prev) => prev ? { ...prev, isSaved: target.isSaved } : null);
-      }
     }
-  };
+  }, [articles]);
 
-  const handleToggleRead = async (articleId: string) => {
+  const handleToggleRead = React.useCallback(async (articleId: string) => {
+    setArticles((prev) => {
+      const target = prev.find((a) => a.id === articleId);
+      if (!target) return prev;
+      const newRead = !target.isRead;
+      return prev.map((a) => (a.id === articleId ? { ...a, isRead: newRead } : a));
+    });
+
+    setActiveReaderArticle((prev) =>
+      prev && prev.id === articleId ? { ...prev, isRead: !prev.isRead } : prev
+    );
+
     const target = articles.find((a) => a.id === articleId);
     if (!target) return;
-
     const newRead = !target.isRead;
-
-    // Optimistic update
-    setArticles((prev) =>
-      prev.map((a) => (a.id === articleId ? { ...a, isRead: newRead } : a))
-    );
-    if (activeReaderArticle?.id === articleId) {
-      setActiveReaderArticle((prev) => prev ? { ...prev, isRead: newRead } : null);
-    }
 
     try {
       await articlesApi.markRead(articleId, newRead);
     } catch {
-      // Revert on failure
       setArticles((prev) =>
         prev.map((a) => (a.id === articleId ? { ...a, isRead: target.isRead } : a))
       );
-      if (activeReaderArticle?.id === articleId) {
-        setActiveReaderArticle((prev) => prev ? { ...prev, isRead: target.isRead } : null);
-      }
     }
-  };
+  }, [articles]);
 
-  const handleToggleSelect = (articleId: string) => {
+  const handleToggleSelect = React.useCallback((articleId: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(articleId)) {
@@ -201,7 +225,7 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
       }
       return next;
     });
-  };
+  }, []);
 
   const handleToggleSelectAll = () => {
     if (selectedIds.size === articles.length) {
@@ -215,15 +239,14 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
     const ids = Array.from(selectedIds);
     if (!ids.length) return;
 
-    // Optimistic local update
     if (action === "markRead") {
-      setArticles((prev) => prev.map((a) => ids.includes(a.id) ? { ...a, isRead: true } : a));
+      setArticles((prev) => prev.map((a) => (ids.includes(a.id) ? { ...a, isRead: true } : a)));
     } else if (action === "markUnread") {
-      setArticles((prev) => prev.map((a) => ids.includes(a.id) ? { ...a, isRead: false } : a));
+      setArticles((prev) => prev.map((a) => (ids.includes(a.id) ? { ...a, isRead: false } : a)));
     } else if (action === "save") {
-      setArticles((prev) => prev.map((a) => ids.includes(a.id) ? { ...a, isSaved: true } : a));
+      setArticles((prev) => prev.map((a) => (ids.includes(a.id) ? { ...a, isSaved: true } : a)));
     } else if (action === "unsave") {
-      setArticles((prev) => prev.map((a) => ids.includes(a.id) ? { ...a, isSaved: false } : a));
+      setArticles((prev) => prev.map((a) => (ids.includes(a.id) ? { ...a, isSaved: false } : a)));
     }
 
     setSelectedIds(new Set());
@@ -249,6 +272,20 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
       setIsMarkingAllRead(false);
     }
   };
+
+  // Keyboard navigation shortcuts
+  useFeedShortcuts({
+    articles,
+    focusedIndex,
+    setFocusedIndex,
+    onOpenReader: (a) => setActiveReaderArticle(a),
+    onToggleSave: handleToggleSave,
+    onToggleRead: handleToggleRead,
+    onToggleSelect: handleToggleSelect,
+    onFocusSearch: () => searchInputRef.current?.focus(),
+    onOpenHelp: () => setShortcutsOpen(true),
+    enabled: !activeReaderArticle && !shortcutsOpen,
+  });
 
   const exportUrl = articlesApi.getExportUrl({
     q: debouncedQuery || undefined,
@@ -313,6 +350,10 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
         onMarkAllFeedRead={handleMarkAllFeedRead}
         isMarkingAllRead={isMarkingAllRead}
         exportUrl={exportUrl}
+        density={density}
+        onDensityChange={handleDensityChange}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
+        searchInputRef={searchInputRef}
       />
 
       {/* Body state */}
@@ -351,17 +392,22 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
           }
         />
       ) : (
-        <div className="space-y-3">
-          {articles.map((article) => (
+        <div className={density === "compact" ? "space-y-1.5" : "space-y-3"}>
+          {articles.map((article, idx) => (
             <ArticleCard
               key={article.id}
               article={article}
               selectable={true}
               isSelected={selectedIds.has(article.id)}
+              isFocused={focusedIndex === idx}
+              density={density}
               onToggleSelect={handleToggleSelect}
               onToggleSave={handleToggleSave}
               onToggleRead={handleToggleRead}
-              onOpenReader={(a) => setActiveReaderArticle(a)}
+              onOpenReader={(a) => {
+                setFocusedIndex(idx);
+                setActiveReaderArticle(a);
+              }}
             />
           ))}
 
@@ -391,6 +437,12 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
         onClose={() => setActiveReaderArticle(null)}
         onToggleSave={handleToggleSave}
         onToggleRead={handleToggleRead}
+      />
+
+      {/* Keyboard Shortcuts Dialog */}
+      <KeyboardShortcutsDialog
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
       />
     </div>
   );

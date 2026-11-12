@@ -1,4 +1,5 @@
 import { sanitizeSearchQuery } from "../src/server/services/article.service";
+import { discoverFeedUrlFromHtml } from "../src/lib/rss/feed-parser";
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
@@ -105,6 +106,44 @@ async function runFeaturesTest() {
   const maxSafeIds = testIds.slice(0, 100);
   assert(maxSafeIds.length === 100, "Bulk operations should cap at 100 items per request");
   console.log("   ✓ Bulk operation bounds verified.");
+
+  // 6. Feed Auto-Discovery from HTML
+  console.log("6. Testing RSS/Atom feed auto-discovery from HTML metadata...");
+  const sampleHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Engineering Blog</title>
+        <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss/feed.xml" />
+      </head>
+      <body><h1>Welcome</h1></body>
+    </html>
+  `;
+  const discovered = discoverFeedUrlFromHtml(sampleHtml, "https://example.com/blog/");
+  assert(
+    discovered === "https://example.com/rss/feed.xml",
+    "Should resolve relative RSS link to absolute URL"
+  );
+
+  const sampleAtomHtml = `
+    <html>
+      <head>
+        <link rel="alternate" type="application/atom+xml" href="https://atom.example.com/feed.atom" />
+      </head>
+    </html>
+  `;
+  const discoveredAtom = discoverFeedUrlFromHtml(sampleAtomHtml, "https://example.com");
+  assert(
+    discoveredAtom === "https://atom.example.com/feed.atom",
+    "Should discover absolute Atom feed URL"
+  );
+
+  const htmlWithoutFeed = `<html><head><title>No Feeds Here</title></head></html>`;
+  assert(
+    discoverFeedUrlFromHtml(htmlWithoutFeed, "https://example.com") === null,
+    "Should return null when no feed link is present"
+  );
+  console.log("   ✓ Feed auto-discovery verified across RSS and Atom.");
 
   console.log("=== ALL ADVANCED FEATURE TESTS PASSED ===");
 }

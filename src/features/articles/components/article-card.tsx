@@ -27,6 +27,8 @@ interface ArticleCardProps {
   selectable?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (articleId: string) => void;
+  isFocused?: boolean;
+  density?: "comfortable" | "compact";
   className?: string;
 }
 
@@ -38,6 +40,8 @@ export function ArticleCard({
   selectable = false,
   isSelected = false,
   onToggleSelect,
+  isFocused = false,
+  density = "comfortable",
   className,
 }: ArticleCardProps) {
   const [copied, setCopied] = React.useState(false);
@@ -74,12 +78,140 @@ export function ArticleCard({
     }
   };
 
+  // Compact Row View
+  if (density === "compact") {
+    return (
+      <div
+        className={cn(
+          "group flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg border border-border/70 bg-card/85 transition-all duration-150 hover:bg-muted/40 hover:border-border",
+          article.isRead && "opacity-75 bg-muted/15 border-border/40",
+          isSelected && "ring-2 ring-primary border-primary bg-primary/4",
+          isFocused && "ring-2 ring-primary/80 border-primary bg-primary/6",
+          className
+        )}
+      >
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {selectable && onToggleSelect && (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onToggleSelect(article.id)}
+              className="size-3.5 rounded border-border accent-primary cursor-pointer shrink-0"
+              aria-label={`Select article ${article.title}`}
+            />
+          )}
+
+          {!article.isRead ? (
+            <span
+              className="size-2 rounded-full bg-blue-600 dark:bg-blue-400 shrink-0 shadow-xs ring-2 ring-blue-500/20"
+              title="Unread article"
+            />
+          ) : (
+            <span
+              className="size-1.5 rounded-full bg-muted-foreground/40 shrink-0"
+              title="Read article"
+            />
+          )}
+
+          <Badge variant="outline" className="text-[10px] py-0 px-1.5 shrink-0 border-border/70 text-foreground/80 max-w-[110px] truncate">
+            {article.sourceName}
+          </Badge>
+
+          <div className="min-w-0 flex-1 truncate">
+            {onOpenReader ? (
+              <button
+                onClick={() => onOpenReader(article)}
+                className="text-xs sm:text-sm font-medium text-foreground hover:text-primary transition-colors truncate text-left w-full cursor-pointer hover:underline underline-offset-2"
+              >
+                {article.title}
+              </button>
+            ) : (
+              <a
+                href={article.originalUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="text-xs sm:text-sm font-medium text-foreground hover:text-primary transition-colors truncate hover:underline underline-offset-2"
+              >
+                {article.title}
+              </a>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+          <time dateTime={article.publishedAt} className="text-[11px] hidden sm:inline">
+            {formattedDate}
+          </time>
+
+          <div className="flex items-center gap-0.5">
+            {onOpenReader && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="Open reader mode"
+                onClick={() => onOpenReader(article)}
+                className="size-6 text-muted-foreground/80 hover:text-foreground cursor-pointer"
+              >
+                <BookOpen className="size-3" />
+              </Button>
+            )}
+
+            {onToggleSave && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title={article.isSaved ? "Remove from saved" : "Save article"}
+                onClick={() => onToggleSave(article.id)}
+                className="size-6 text-muted-foreground/80 hover:text-foreground cursor-pointer"
+              >
+                {article.isSaved ? (
+                  <BookmarkCheck className="size-3 fill-amber-500 text-amber-500" />
+                ) : (
+                  <Bookmark className="size-3" />
+                )}
+              </Button>
+            )}
+
+            {onToggleRead && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title={article.isRead ? "Mark as unread" : "Mark as read"}
+                onClick={() => onToggleRead(article.id)}
+                className="size-6 text-muted-foreground/80 hover:text-foreground cursor-pointer"
+              >
+                <CheckCircle2
+                  className={cn("size-3", article.isRead && "text-emerald-500")}
+                />
+              </Button>
+            )}
+
+            <a
+              href={article.originalUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className={buttonVariants({
+                variant: "ghost",
+                size: "icon-xs",
+                className: "size-6 text-muted-foreground/80 hover:text-foreground cursor-pointer",
+              })}
+            >
+              <ExternalLink className="size-3" />
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Comfortable Card View
   return (
     <Card
       className={cn(
         "group relative overflow-hidden border border-border/80 bg-card/90 transition-all duration-200 hover:border-primary/40 hover:shadow-sm",
         article.isRead && "opacity-75 bg-muted/20 border-border/40",
         isSelected && "ring-2 ring-primary border-primary bg-primary/2",
+        isFocused && "ring-2 ring-primary/80 border-primary bg-primary/4 shadow-sm",
         className
       )}
     >

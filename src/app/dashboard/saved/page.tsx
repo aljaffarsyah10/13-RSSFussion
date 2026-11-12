@@ -20,6 +20,8 @@ import {
   CheckSquare,
   Square,
   Trash2,
+  LayoutGrid,
+  LayoutList,
 } from "lucide-react";
 
 export default function SavedArticlesPage() {
@@ -27,6 +29,7 @@ export default function SavedArticlesPage() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedTopic, setSelectedTopic] = React.useState("");
   const [sortOrder, setSortOrder] = React.useState<"newest" | "oldest" | "title-asc">("newest");
+  const [density, setDensity] = React.useState<"comfortable" | "compact">("comfortable");
 
   // Selection
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -324,6 +327,26 @@ export default function SavedArticlesPage() {
                 <option value="title-asc">Title (A-Z)</option>
               </select>
 
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setDensity(density === "comfortable" ? "compact" : "comfortable")}
+                className="h-8.5 text-xs gap-1.5 cursor-pointer shadow-2xs"
+                title={density === "comfortable" ? "Switch to Compact List View" : "Switch to Card View"}
+              >
+                {density === "comfortable" ? (
+                  <>
+                    <LayoutList className="size-3 text-muted-foreground" />
+                    <span className="hidden sm:inline">Compact</span>
+                  </>
+                ) : (
+                  <>
+                    <LayoutGrid className="size-3 text-muted-foreground" />
+                    <span className="hidden sm:inline">Cards</span>
+                  </>
+                )}
+              </Button>
+
               {(searchQuery || selectedTopic || sortOrder !== "newest") && (
                 <Button
                   variant="ghost"
@@ -403,13 +426,14 @@ export default function SavedArticlesPage() {
               No saved articles match your search or topic filter.
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className={density === "compact" ? "space-y-1.5" : "space-y-3"}>
               {filteredArticles.map((article) => (
                 <ArticleCard
                   key={article.id}
                   article={article}
                   selectable={true}
                   isSelected={selectedIds.has(article.id)}
+                  density={density}
                   onToggleSelect={handleToggleSelect}
                   onToggleSave={handleToggleSave}
                   onToggleRead={handleToggleRead}

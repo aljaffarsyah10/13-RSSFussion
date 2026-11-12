@@ -22,6 +22,9 @@ import {
   Clock,
   Copy,
   Check,
+  Share2,
+  FileText,
+  Quote,
 } from "lucide-react";
 
 interface ArticleReaderDialogProps {
@@ -39,7 +42,8 @@ export function ArticleReaderDialog({
   onToggleSave,
   onToggleRead,
 }: ArticleReaderDialogProps) {
-  const [copied, setCopied] = React.useState(false);
+  const [copiedType, setCopiedType] = React.useState<"link" | "markdown" | "citation" | null>(null);
+  const [fontSize, setFontSize] = React.useState<"sm" | "base" | "lg">("base");
 
   const wordCount = React.useMemo(() => {
     if (!article) return 0;
@@ -65,16 +69,64 @@ export function ArticleReaderDialog({
     }
   }, [article]);
 
+  const pubYear = React.useMemo(() => {
+    if (!article) return new Date().getFullYear();
+    try {
+      return new Date(article.publishedAt).getFullYear();
+    } catch {
+      return new Date().getFullYear();
+    }
+  }, [article]);
+
   if (!article) return null;
 
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(article.canonicalUrl || article.originalUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopiedType("link");
+      setTimeout(() => setCopiedType(null), 2000);
     } catch {
-      // fallback
+      // ignore
     }
+  };
+
+  const handleCopyMarkdown = async () => {
+    const md = `[${article.title}](${article.canonicalUrl || article.originalUrl}) - *${article.sourceName}*`;
+    try {
+      await navigator.clipboard.writeText(md);
+      setCopiedType("markdown");
+      setTimeout(() => setCopiedType(null), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCopyCitation = async () => {
+    const authorStr = article.author || article.sourceName;
+    const citation = `${authorStr} (${pubYear}). "${article.title}". ${article.sourceName}. Available at: ${article.canonicalUrl || article.originalUrl}`;
+    try {
+      await navigator.clipboard.writeText(citation);
+      setCopiedType("citation");
+      setTimeout(() => setCopiedType(null), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleShare = async () => {
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({
+          title: article.title,
+          text: article.description,
+          url: article.canonicalUrl || article.originalUrl,
+        });
+        return;
+      } catch {
+        // Fallback to copy link
+      }
+    }
+    handleCopyLink();
   };
 
   return (
@@ -82,27 +134,54 @@ export function ArticleReaderDialog({
       <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto sm:max-w-3xl p-6 sm:p-8">
         <DialogHeader className="space-y-3 pb-4 border-b border-border/60">
           {/* Metadata pill row */}
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <Badge variant="outline" className="gap-1.5 font-medium border-border/70 text-foreground">
-              <Globe className="size-3 text-muted-foreground" />
-              <span>{article.sourceName}</span>
-            </Badge>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="gap-1.5 font-medium border-border/70 text-foreground">
+                <Globe className="size-3 text-muted-foreground" />
+                <span>{article.sourceName}</span>
+              </Badge>
 
-            <span className="flex items-center gap-1 text-[11px]">
-              <Calendar className="size-3 opacity-70" />
-              <span>{formattedDate}</span>
-            </span>
-
-            <span className="flex items-center gap-1 text-[11px]">
-              <Clock className="size-3 opacity-70" />
-              <span>{readingTimeMin} min read ({wordCount} words)</span>
-            </span>
-
-            {article.author && (
-              <span className="text-[11px] text-muted-foreground">
-                by <strong className="text-foreground font-medium">{article.author}</strong>
+              <span className="flex items-center gap-1 text-[11px]">
+                <Calendar className="size-3 opacity-70" />
+                <span>{formattedDate}</span>
               </span>
-            )}
+
+              <span className="flex items-center gap-1 text-[11px]">
+                <Clock className="size-3 opacity-70" />
+                <span>{readingTimeMin} min read ({wordCount} words)</span>
+              </span>
+
+              {article.author && (
+                <span className="text-[11px] text-muted-foreground">
+                  by <strong className="text-foreground font-medium">{article.author}</strong>
+                </span>
+              )}
+            </div>
+
+            {/* Typography Font Size Adjuster */}
+            <div className="flex items-center gap-1 border border-border/70 rounded-lg p-0.5 bg-muted/40">
+              <button
+                onClick={() => setFontSize("sm")}
+                className={`px-1.5 py-0.5 text-[10px] rounded font-medium cursor-pointer ${fontSize === "sm" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"}`}
+                title="Small text"
+              >
+                A-
+              </button>
+              <button
+                onClick={() => setFontSize("base")}
+                className={`px-1.5 py-0.5 text-xs rounded font-medium cursor-pointer ${fontSize === "base" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"}`}
+                title="Default text"
+              >
+                A
+              </button>
+              <button
+                onClick={() => setFontSize("lg")}
+                className={`px-1.5 py-0.5 text-xs rounded font-semibold cursor-pointer ${fontSize === "lg" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"}`}
+                title="Large text"
+              >
+                A+
+              </button>
+            </div>
           </div>
 
           <DialogTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-foreground leading-snug">
@@ -129,7 +208,11 @@ export function ArticleReaderDialog({
             </div>
           )}
 
-          <div className="text-sm sm:text-base leading-relaxed text-foreground/90 font-serif sm:font-sans space-y-4">
+          <div
+            className={`leading-relaxed text-foreground/90 font-serif sm:font-sans space-y-4 ${
+              fontSize === "sm" ? "text-xs sm:text-sm" : fontSize === "lg" ? "text-base sm:text-lg" : "text-sm sm:text-base"
+            }`}
+          >
             {article.description && (
               <p className="leading-relaxed whitespace-pre-line text-foreground/90">
                 {article.description}
@@ -159,18 +242,56 @@ export function ArticleReaderDialog({
         </div>
 
         {/* Action Footer */}
-        <DialogFooter className="flex-row items-center justify-between sm:justify-between border-t border-border/60 pt-4 gap-2">
-          <div className="flex items-center gap-1.5">
+        <DialogFooter className="flex-col sm:flex-row items-stretch sm:items-center justify-between border-t border-border/60 pt-4 gap-2">
+          {/* Smart Citation & Sharing Bar */}
+          <div className="flex items-center gap-1 flex-wrap">
             <Button
               variant="outline"
-              size="sm"
+              size="xs"
               onClick={handleCopyLink}
-              className="h-8 gap-1.5 text-xs cursor-pointer"
+              className="h-7 text-xs gap-1 cursor-pointer"
+              title="Copy URL"
             >
-              {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
-              <span>{copied ? "Link Copied" : "Copy Link"}</span>
+              {copiedType === "link" ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+              <span>{copiedType === "link" ? "Copied" : "Link"}</span>
             </Button>
 
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={handleCopyMarkdown}
+              className="h-7 text-xs gap-1 cursor-pointer"
+              title="Copy Markdown link [Title](URL)"
+            >
+              {copiedType === "markdown" ? <Check className="size-3 text-emerald-500" /> : <FileText className="size-3" />}
+              <span>{copiedType === "markdown" ? "MD Copied" : "Markdown"}</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={handleCopyCitation}
+              className="h-7 text-xs gap-1 cursor-pointer"
+              title="Copy academic/research citation"
+            >
+              {copiedType === "citation" ? <Check className="size-3 text-emerald-500" /> : <Quote className="size-3" />}
+              <span>{copiedType === "citation" ? "Cited" : "Citation"}</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={handleShare}
+              className="h-7 text-xs gap-1 cursor-pointer"
+              title="Share article"
+            >
+              <Share2 className="size-3" />
+              <span>Share</span>
+            </Button>
+          </div>
+
+          {/* Core Actions */}
+          <div className="flex items-center gap-1.5 ml-auto">
             {onToggleSave && (
               <Button
                 variant={article.isSaved ? "secondary" : "outline"}
@@ -205,21 +326,21 @@ export function ArticleReaderDialog({
                 <span>{article.isRead ? "Read" : "Mark as Read"}</span>
               </Button>
             )}
-          </div>
 
-          <a
-            href={article.originalUrl}
-            target="_blank"
-            rel="noopener noreferrer nofollow"
-            className={buttonVariants({
-              variant: "default",
-              size: "sm",
-              className: "h-8 gap-1.5 text-xs shadow-xs cursor-pointer",
-            })}
-          >
-            <span>Open Publication</span>
-            <ExternalLink className="size-3" />
-          </a>
+            <a
+              href={article.originalUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className={buttonVariants({
+                variant: "default",
+                size: "sm",
+                className: "h-8 gap-1.5 text-xs shadow-xs cursor-pointer",
+              })}
+            >
+              <span>Original</span>
+              <ExternalLink className="size-3" />
+            </a>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

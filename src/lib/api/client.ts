@@ -200,6 +200,7 @@ export const sourcesApi = {
       title?: string;
       description?: string;
       siteUrl?: string;
+      discoveredFeedUrl?: string;
       itemCount?: number;
       itemsCount?: number;
     }>("/api/sources/validate", {

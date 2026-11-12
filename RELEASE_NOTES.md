@@ -50,6 +50,23 @@ Version 1.1.0 delivers major functional maturity upgrades across article curatio
 - **Keywords Page:** Added search bar, topic filter, and active/paused status filters.
 - **Topics Page:** Added search bar and article/keyword count indicators.
 
+#### 2.7. Keyboard Shortcuts Navigation System
+- **Power-User Shortcuts:** Seamless feed navigation via `j`/`k` (next/prev), `o`/`Enter` (open reader), `v` (open publication), `m` (toggle read), `s` (bookmark), `x` (toggle select for bulk actions), and `/` (focus search).
+- **Shortcuts Cheatsheet Modal (`?`):** Intuitive dialog listing all active shortcuts with formatted `<kbd>` key badges.
+
+#### 2.8. Feed Auto-Discovery Engine
+- **HTML Alternate Link Parsing:** Automatically scans website HTML for `<link rel="alternate" type="application/rss+xml">` or `application/atom+xml` tags.
+- **Effortless Subscription:** Users can paste regular blog or publication homepages (e.g. `https://techcrunch.com`), and RSSFusion automatically discovers and resolves the underlying feed URL.
+
+#### 2.9. Dual Reading Density Modes
+- **Comfortable Cards vs Compact List:** Switch between magazine preview cards (with image and snippet) and ultra-dense compact headline rows.
+- **Client Preference Persistence:** Automatically persists selected density in `localStorage`.
+
+#### 2.10. Smart Research Citations & Web Share
+- **Citation Generator:** Instant generation of Markdown and academic citations (`Author (Year). "Title". Publication. URL`).
+- **Web Share Integration:** Triggers native OS share sheets on supported mobile and desktop browsers with clipboard fallback.
+- **Typography Adjuster:** Dynamic `A-` / `A` / `A+` font size control in Reader View modal.
+
 ### 3. Verification & Quality Assurance
 - **5 Automated Test Suites:** 22 automated test blocks passing 100% (`npm test`).
 - **ESLint:** Clean with `0 errors, 0 warnings`.
