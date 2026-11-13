@@ -32,7 +32,7 @@ interface ArticleCardProps {
   className?: string;
 }
 
-export function ArticleCard({
+export function ArticleCardComponent({
   article,
   onToggleSave,
   onToggleRead,
@@ -45,6 +45,7 @@ export function ArticleCard({
   className,
 }: ArticleCardProps) {
   const [copied, setCopied] = React.useState(false);
+  const [imageError, setImageError] = React.useState(false);
 
   // Format readable timestamp
   const formattedDate = React.useMemo(() => {
@@ -348,33 +349,49 @@ export function ArticleCard({
           </div>
         </div>
 
-        {/* Title */}
-        <h3 className="mt-2 text-base font-semibold leading-snug tracking-tight text-foreground sm:text-lg">
-          {onOpenReader ? (
-            <button
-              onClick={() => onOpenReader(article)}
-              className="text-left hover:text-primary transition-colors hover:underline underline-offset-3 cursor-pointer"
-            >
-              {article.title}
-            </button>
-          ) : (
-            <a
-              href={article.originalUrl}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="hover:text-primary transition-colors hover:underline underline-offset-3"
-            >
-              {article.title}
-            </a>
-          )}
-        </h3>
+        {/* Title and Media Grid */}
+        <div className="mt-2.5 flex flex-col-reverse sm:flex-row sm:items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-semibold leading-snug tracking-tight text-foreground sm:text-lg">
+              {onOpenReader ? (
+                <button
+                  onClick={() => onOpenReader(article)}
+                  className="text-left hover:text-primary transition-colors hover:underline underline-offset-3 cursor-pointer"
+                >
+                  {article.title}
+                </button>
+              ) : (
+                <a
+                  href={article.originalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="hover:text-primary transition-colors hover:underline underline-offset-3"
+                >
+                  {article.title}
+                </a>
+              )}
+            </h3>
 
-        {/* Snippet */}
-        {article.description && (
-          <p className="mt-2 line-clamp-2 text-xs text-muted-foreground sm:text-sm leading-relaxed">
-            {article.description}
-          </p>
-        )}
+            {article.description && (
+              <p className="mt-2 line-clamp-2 text-xs text-muted-foreground sm:text-sm leading-relaxed">
+                {article.description}
+              </p>
+            )}
+          </div>
+
+          {article.imageUrl && !imageError && (
+            <div className="relative shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted/30 w-full sm:w-36 h-32 sm:h-24">
+              <img
+                src={article.imageUrl}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                onError={() => setImageError(true)}
+                className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            </div>
+          )}
+        </div>
 
         {/* Footer Keyword & Topic Badges */}
         {(article.matchedKeywords?.length || article.topics?.length) ? (
@@ -403,3 +420,5 @@ export function ArticleCard({
     </Card>
   );
 }
+
+export const ArticleCard = React.memo(ArticleCardComponent);

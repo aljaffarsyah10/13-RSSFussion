@@ -1,6 +1,14 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { checkKeywordQuota } from "./quota.service";
+import { checkKeywordQuota, invalidateQuotaUsageCache } from "./quota.service";
+import { invalidateAnalyticsCache } from "./analytics.service";
 import { Keyword } from "@/types/models";
+
+async function invalidateKeywordCaches(userId: string) {
+  await Promise.all([
+    invalidateAnalyticsCache(userId),
+    invalidateQuotaUsageCache(userId),
+  ]).catch(() => {});
+}
 
 interface KeywordDbRow {
   id: string;
@@ -61,6 +69,8 @@ export async function createKeyword(
     throw error;
   }
 
+  await invalidateKeywordCaches(userId);
+
   return mapKeywordRow(data as unknown as KeywordDbRow);
 }
 
@@ -87,6 +97,9 @@ export async function updateKeyword(
     }
     throw error;
   }
+
+  await invalidateKeywordCaches(userId);
+
   return mapKeywordRow(data as unknown as KeywordDbRow);
 }
 
@@ -99,5 +112,8 @@ export async function deleteKeyword(userId: string, keywordId: string) {
     .eq("user_id", userId);
 
   if (error) throw error;
+
+  await invalidateKeywordCaches(userId);
+
   return { success: true };
 }

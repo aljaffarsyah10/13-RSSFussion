@@ -7,7 +7,14 @@ export async function GET() {
   try {
     const user = await requireUser();
     const analytics = await getTrendAnalytics(user.id);
-    return NextResponse.json({ data: analytics });
+    return NextResponse.json(
+      { data: analytics },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+        },
+      }
+    );
   } catch (err: unknown) {
     return handleApiError(err);
   }

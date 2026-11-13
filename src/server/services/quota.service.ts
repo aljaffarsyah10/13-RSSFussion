@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { cache } from "@/lib/cache/cache-manager";
 
 export interface QuotaConfig {
   maxSources: number;
@@ -14,14 +15,22 @@ export const PLAN_LIMITS: Record<string, QuotaConfig> = {
 };
 
 export async function getUserPlan(userId: string): Promise<string> {
-  const supabase = await createServerSupabaseClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("plan")
-    .eq("id", userId)
-    .single();
+  const cacheKey = `user_plan:${userId}`;
 
-  return data?.plan || "free";
+  return cache.remember(cacheKey, 120, async () => {
+    const supabase = await createServerSupabaseClient();
+    const { data } = await supabase
+      .from("profiles")
+      .select("plan")
+      .eq("id", userId)
+      .single();
+
+    return data?.plan || "free";
+  });
+}
+
+export async function invalidateUserPlanCache(userId: string) {
+  await cache.del(`user_plan:${userId}`);
 }
 
 export async function checkSourceQuota(userId: string): Promise<void> {
@@ -73,21 +82,29 @@ export async function getUserQuotaUsage(userId: string) {
   const plan = await getUserPlan(userId);
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
 
-  const supabase = await createServerSupabaseClient();
+  const cacheKey = `quota_usage:${userId}`;
 
-  const [sourcesRes, topicsRes, keywordsRes] = await Promise.all([
-    supabase.from("rss_sources").select("*", { count: "exact", head: true }).eq("user_id", userId),
-    supabase.from("topics").select("*", { count: "exact", head: true }).eq("user_id", userId),
-    supabase.from("keywords").select("*", { count: "exact", head: true }).eq("user_id", userId),
-  ]);
+  return cache.remember(cacheKey, 30, async () => {
+    const supabase = await createServerSupabaseClient();
 
-  return {
-    plan,
-    limits,
-    usage: {
-      sources: sourcesRes.count || 0,
-      topics: topicsRes.count || 0,
-      keywords: keywordsRes.count || 0,
-    },
-  };
+    const [sourcesRes, topicsRes, keywordsRes] = await Promise.all([
+      supabase.from("rss_sources").select("*", { count: "exact", head: true }).eq("user_id", userId),
+      supabase.from("topics").select("*", { count: "exact", head: true }).eq("user_id", userId),
+      supabase.from("keywords").select("*", { count: "exact", head: true }).eq("user_id", userId),
+    ]);
+
+    return {
+      plan,
+      limits,
+      usage: {
+        sources: sourcesRes.count || 0,
+        topics: topicsRes.count || 0,
+        keywords: keywordsRes.count || 0,
+      },
+    };
+  });
+}
+
+export async function invalidateQuotaUsageCache(userId: string) {
+  await cache.del(`quota_usage:${userId}`);
 }

@@ -7,7 +7,14 @@ export async function GET() {
   try {
     const user = await requireUser();
     const stats = await getDashboardStats(user.id);
-    return NextResponse.json({ data: stats });
+    return NextResponse.json(
+      { data: stats },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=15, stale-while-revalidate=30",
+        },
+      }
+    );
   } catch (err: unknown) {
     return handleApiError(err);
   }

@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { checkSourceQuota } from "./quota.service";
+import { checkSourceQuota, invalidateQuotaUsageCache } from "./quota.service";
+import { invalidateDashboardStatsCache } from "./dashboard.service";
 import { validateFeedUrl } from "@/lib/rss/ssrf-validator";
 import { fetchAndParseFeed } from "@/lib/rss/feed-parser";
 import { FeedFetchLog, RssSource, SourceStatus } from "@/types/models";
@@ -109,6 +110,11 @@ export async function createSource(userId: string, input: CreateSourceInput): Pr
     throw error;
   }
 
+  await Promise.all([
+    invalidateDashboardStatsCache(userId),
+    invalidateQuotaUsageCache(userId),
+  ]).catch(() => {});
+
   return mapSourceRow(data as SourceDbRow);
 }
 
@@ -166,6 +172,9 @@ export async function updateSource(
     }
     throw error;
   }
+
+  await invalidateDashboardStatsCache(userId).catch(() => {});
+
   return mapSourceRow(data as SourceDbRow);
 }
 
@@ -178,6 +187,12 @@ export async function deleteSource(userId: string, sourceId: string) {
     .eq("user_id", userId);
 
   if (error) throw error;
+
+  await Promise.all([
+    invalidateDashboardStatsCache(userId),
+    invalidateQuotaUsageCache(userId),
+  ]).catch(() => {});
+
   return { success: true };
 }
 

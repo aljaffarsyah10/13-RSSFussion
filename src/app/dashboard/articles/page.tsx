@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -8,13 +9,22 @@ import { ErrorState } from "@/components/shared/error-state";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ArticleCard } from "@/features/articles/components/article-card";
 import { ArticleFilters } from "@/features/articles/components/article-filters";
-import { ArticleReaderDialog } from "@/features/articles/components/article-reader-dialog";
-import { KeyboardShortcutsDialog } from "@/components/shared/keyboard-shortcuts-dialog";
 import { useFeedShortcuts } from "@/hooks/use-feed-shortcuts";
 import { Button } from "@/components/ui/button";
 import { articlesApi, sourcesApi, topicsApi } from "@/lib/api/client";
 import { Article, RssSource, Topic } from "@/types/models";
 import { Newspaper, Loader2 } from "lucide-react";
+
+// Code splitting: dynamically import heavy dialogs
+const ArticleReaderDialog = dynamic(
+  () => import("@/features/articles/components/article-reader-dialog").then((m) => m.ArticleReaderDialog),
+  { ssr: false }
+);
+
+const KeyboardShortcutsDialog = dynamic(
+  () => import("@/components/shared/keyboard-shortcuts-dialog").then((m) => m.KeyboardShortcutsDialog),
+  { ssr: false }
+);
 
 function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
   const [articles, setArticles] = React.useState<Article[]>([]);

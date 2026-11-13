@@ -102,6 +102,7 @@ RSSFusion is structured as an edge-ready Next.js 16 web application paired with 
 ## ✨ Key Features
 
 ### 📡 Feed Management & Health Monitoring
+
 - **Add / Edit / Remove Feeds:** Seamless feed subscription with automatic title, description, and website URL detection.
 - **Refresh All Feeds:** One-click batch trigger to schedule ingestion across all active feeds (`POST /api/sources/refresh-all`).
 - **Individual Feed Refresh:** Manual refresh per feed protected by a 60-second sliding window rate limit.
@@ -110,6 +111,7 @@ RSSFusion is structured as an edge-ready Next.js 16 web application paired with 
 - **OPML 2.0 Import & Export:** Full round-trip subscription migration compatible with Feedly, Inoreader, and NetNewsWire.
 
 ### 🔍 Advanced Feed Filtering & Sorting
+
 - **Multi-Factor Filtering:** Combine headline/description search queries with specific publication and topic filters.
 - **Timeframe Filtering:** Slice article feeds by `Past 24 Hours`, `Past 3 Days`, `Past 7 Days`, `Past 30 Days`, or `All Time`.
 - **Flexible Sorting:** Toggle between `Newest First` (default), `Oldest First`, and `Title (A-Z)`.
@@ -117,6 +119,7 @@ RSSFusion is structured as an edge-ready Next.js 16 web application paired with 
 - **Search Sanitization:** User queries are sanitized against SQL/PostgREST injection wildcards before execution.
 
 ### ⚡ Bulk Actions & Batch Operations
+
 - **Multi-Article Selection:** Select individual articles, select all filtered results, or clear selection with one click.
 - **Sticky Batch Toolbar:** Floating action bar appearing automatically upon selection:
   - **Bulk Mark as Read / Unread**
@@ -125,28 +128,33 @@ RSSFusion is structured as an edge-ready Next.js 16 web application paired with 
 - **Mark All Feed as Read:** Instant button to mark entire filtered streams as read with confirmation protection.
 
 ### 📖 Distraction-Free Reader Mode
+
 - **In-App Reader Modal:** Clean typography modal (`ArticleReaderDialog`) to read article content snippets without context switching.
 - **Reading Time & Word Count:** Automatic reading time estimation (`X min read`) and exact word counts.
 - **Publication Provenance:** Source badge, publication date, author attribution, and topic tags.
 - **Quick Actions:** One-click link copying with visual feedback, bookmark toggle, read toggle, and direct publication link.
 
 ### 💾 Multi-Format Intelligence Export
+
 - **Export to CSV:** Fully escaped RFC 4180 CSV with quotes, commas, and multiline support.
 - **Export to Markdown:** Clean markdown notes ready to import into **Obsidian**, **Notion**, or **Logseq**.
 - **Export to JSON:** Machine-readable structured payload containing full article metadata and matched keywords.
 - **Filtered & Saved Export:** Export either currently filtered feed results or the entire saved articles knowledge base.
 
 ### 🏷 Intelligence & Keyword Monitoring
+
 - **Exact-Phrase Keyword Matching:** Configure alert terms (e.g. `PostgreSQL`, `Series A`, `Next.js 16`) to auto-tag incoming stories.
 - **Topic Clustering:** Group articles into thematic folders (e.g. `Artificial Intelligence`, `Fintech`, `Security`).
 - **Instant Keyword & Topic Search:** Filter monitored rules and topics with live search bars and active/paused toggles.
 
 ### 📊 Analytics & Trend Velocity
+
 - **7-Day Velocity Chart:** Daily article ingestion volume visualizer.
 - **Source Breakdown:** Top publishing feeds ranked by volume.
 - **Topic Distribution:** Percentage distribution of matched articles across topics.
 
 ### 🛡 Security & Ingestion Hardening
+
 - **SSRF Validation:** Pre-resolves DNS records and rejects private IPv4/IPv6 blocks (RFC 1918, loopbacks `127.0.0.0/8`, link-local `169.254.0.0/16`, cloud metadata `169.254.169.254`).
 - **Stream Limiting & Timeouts:** Strict 10-second timeout and 5 MB payload caps prevent decompression bombs and hanging sockets.
 - **HTML Sanitization:** Strips malicious scripts and dangerous tags using DOMPurify patterns.
@@ -155,52 +163,52 @@ RSSFusion is structured as an edge-ready Next.js 16 web application paired with 
 
 ## 🔌 API Endpoints Reference
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/articles` | List articles with `q`, `sourceId`, `topicId`, `readStatus`, `savedOnly`, `timeframe`, `sort`, `cursor`, `limit` |
-| `POST` | `/api/articles/[id]/read` | Mark individual article as read/unread |
-| `POST` | `/api/articles/bulk` | Batch operations (`markRead`, `markUnread`, `save`, `unsave`, `markAllRead`) |
-| `GET` | `/api/articles/export` | Export articles as `csv`, `markdown`, or `json` attachment |
-| `GET` | `/api/saved` | List user's saved/bookmarked articles |
-| `POST` | `/api/saved` | Save/bookmark an article |
-| `DELETE` | `/api/saved/[articleId]` | Remove article from bookmarks |
-| `GET` | `/api/sources` | List all subscribed RSS/Atom sources |
-| `POST` | `/api/sources` | Add a new RSS source with SSRF verification |
-| `PATCH` | `/api/sources/[id]` | Update source name, fetch interval, or enabled status |
-| `DELETE` | `/api/sources/[id]` | Delete source and cascade delete associated articles |
-| `POST` | `/api/sources/[id]/refresh` | Manually trigger refresh for a single source (rate limited) |
-| `POST` | `/api/sources/refresh-all` | Schedule immediate refresh across all enabled feeds |
-| `POST` | `/api/sources/validate` | Test feed URL validity and extract metadata before adding |
-| `POST` | `/api/sources/opml/import` | Import subscriptions from an OPML file or XML string |
-| `GET` | `/api/sources/opml/export` | Download subscriptions as an OPML 2.0 XML file |
-| `GET` | `/api/topics` | List all topics with associated keyword counts |
-| `POST` | `/api/topics` | Create a new topic cluster |
-| `PATCH` | `/api/topics/[id]` | Update topic title or description |
-| `DELETE` | `/api/topics/[id]` | Delete a topic |
-| `GET` | `/api/keywords` | List monitored keywords with topic relationships |
-| `POST` | `/api/keywords` | Add a keyword to monitor |
-| `PATCH` | `/api/keywords/[id]` | Toggle keyword enabled status or update topic assignment |
-| `DELETE` | `/api/keywords/[id]` | Remove a keyword rule |
-| `GET` | `/api/analytics/trends` | Fetch 7-day ingestion stats and topic distributions |
-| `GET` | `/api/quota` | Get current plan quota limits and usage counters |
-| `GET` | `/api/settings/notifications` | Get notification preferences and delivery logs |
-| `POST` | `/api/settings/notifications` | Update notification preferences |
+| Method   | Endpoint                      | Description                                                                                                      |
+| -------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/articles`               | List articles with `q`, `sourceId`, `topicId`, `readStatus`, `savedOnly`, `timeframe`, `sort`, `cursor`, `limit` |
+| `POST`   | `/api/articles/[id]/read`     | Mark individual article as read/unread                                                                           |
+| `POST`   | `/api/articles/bulk`          | Batch operations (`markRead`, `markUnread`, `save`, `unsave`, `markAllRead`)                                     |
+| `GET`    | `/api/articles/export`        | Export articles as `csv`, `markdown`, or `json` attachment                                                       |
+| `GET`    | `/api/saved`                  | List user's saved/bookmarked articles                                                                            |
+| `POST`   | `/api/saved`                  | Save/bookmark an article                                                                                         |
+| `DELETE` | `/api/saved/[articleId]`      | Remove article from bookmarks                                                                                    |
+| `GET`    | `/api/sources`                | List all subscribed RSS/Atom sources                                                                             |
+| `POST`   | `/api/sources`                | Add a new RSS source with SSRF verification                                                                      |
+| `PATCH`  | `/api/sources/[id]`           | Update source name, fetch interval, or enabled status                                                            |
+| `DELETE` | `/api/sources/[id]`           | Delete source and cascade delete associated articles                                                             |
+| `POST`   | `/api/sources/[id]/refresh`   | Manually trigger refresh for a single source (rate limited)                                                      |
+| `POST`   | `/api/sources/refresh-all`    | Schedule immediate refresh across all enabled feeds                                                              |
+| `POST`   | `/api/sources/validate`       | Test feed URL validity and extract metadata before adding                                                        |
+| `POST`   | `/api/sources/opml/import`    | Import subscriptions from an OPML file or XML string                                                             |
+| `GET`    | `/api/sources/opml/export`    | Download subscriptions as an OPML 2.0 XML file                                                                   |
+| `GET`    | `/api/topics`                 | List all topics with associated keyword counts                                                                   |
+| `POST`   | `/api/topics`                 | Create a new topic cluster                                                                                       |
+| `PATCH`  | `/api/topics/[id]`            | Update topic title or description                                                                                |
+| `DELETE` | `/api/topics/[id]`            | Delete a topic                                                                                                   |
+| `GET`    | `/api/keywords`               | List monitored keywords with topic relationships                                                                 |
+| `POST`   | `/api/keywords`               | Add a keyword to monitor                                                                                         |
+| `PATCH`  | `/api/keywords/[id]`          | Toggle keyword enabled status or update topic assignment                                                         |
+| `DELETE` | `/api/keywords/[id]`          | Remove a keyword rule                                                                                            |
+| `GET`    | `/api/analytics/trends`       | Fetch 7-day ingestion stats and topic distributions                                                              |
+| `GET`    | `/api/quota`                  | Get current plan quota limits and usage counters                                                                 |
+| `GET`    | `/api/settings/notifications` | Get notification preferences and delivery logs                                                                   |
+| `POST`   | `/api/settings/notifications` | Update notification preferences                                                                                  |
 
 ---
 
 ## 🛠 Tech Stack
 
-| Domain | Technology | Description |
-|---|---|---|
-| **Framework** | Next.js 16.4.5 (App Router, Turbopack) | Modern React Server Components architecture |
-| **Language** | TypeScript 5 (Strict Mode) | End-to-end type safety |
-| **Styling** | Tailwind CSS v4 + OKLCH Tokens | Low-saturation slate/obsidian palette with dark mode |
-| **UI Components**| Base-UI / shadcn primitives | Accessible dialogs, drawers, dropdowns, and Lucide icons |
-| **Database** | PostgreSQL via Supabase | Row-Level Security, ACID transactions, trigram indices |
-| **Authentication**| Supabase Auth (`@supabase/ssr`) | Secure HTTP-only cookies, session refresh middleware |
-| **Background Ingestion** | Node.js 22 + `rss-parser` + `tsx` | Scalable worker utilizing `FOR UPDATE SKIP LOCKED` |
-| **Email Service** | Resend API | Transactional notification delivery |
-| **Testing** | Node test runner + TypeScript test harness | Security, unit, integration, and feature suites |
+| Domain                   | Technology                                 | Description                                              |
+| ------------------------ | ------------------------------------------ | -------------------------------------------------------- |
+| **Framework**            | Next.js 16.4.5 (App Router, Turbopack)     | Modern React Server Components architecture              |
+| **Language**             | TypeScript 5 (Strict Mode)                 | End-to-end type safety                                   |
+| **Styling**              | Tailwind CSS v4 + OKLCH Tokens             | Low-saturation slate/obsidian palette with dark mode     |
+| **UI Components**        | Base-UI / shadcn primitives                | Accessible dialogs, drawers, dropdowns, and Lucide icons |
+| **Database**             | PostgreSQL via Supabase                    | Row-Level Security, ACID transactions, trigram indices   |
+| **Authentication**       | Supabase Auth (`@supabase/ssr`)            | Secure HTTP-only cookies, session refresh middleware     |
+| **Background Ingestion** | Node.js 22 + `rss-parser` + `tsx`          | Scalable worker utilizing `FOR UPDATE SKIP LOCKED`       |
+| **Email Service**        | Resend API                                 | Transactional notification delivery                      |
+| **Testing**              | Node test runner + TypeScript test harness | Security, unit, integration, and feature suites          |
 
 ---
 
@@ -302,6 +310,7 @@ cd ..
 ### 2. Environment Variables Configuration
 
 #### Web Application (`.env.local`)
+
 Create `.env.local` from the template:
 
 ```bash
@@ -325,6 +334,7 @@ NOTIFICATION_FROM_EMAIL=notifications@yourdomain.com
 ```
 
 #### Background Worker (`worker/.env`)
+
 Create `worker/.env`:
 
 ```bash
@@ -353,6 +363,7 @@ Execute the SQL migration files inside your Supabase project's **SQL Editor** or
 ```
 
 The migrations establish:
+
 - Row-Level Security (RLS) policies scoped strictly to `auth.uid()`.
 - Queue indexing for polling efficiency (`next_fetch_at`, `status`).
 - Trigram full-text search indices for article title and summary search.
@@ -388,21 +399,21 @@ The worker connects to Supabase, acquires pending feeds with `FOR UPDATE SKIP LO
 
 ### Web Application (`rssfusion/`)
 
-| Script | Command | Purpose |
-|---|---|---|
-| `dev` | `next dev` | Starts local Next.js dev server with Turbopack |
-| `build` | `next build` | Creates production-optimized standalone build |
-| `start` | `next start` | Runs the production Next.js server |
-| `lint` | `eslint` | Executes ESLint to enforce code quality |
-| `test` | `tsx test/unit-tests.ts && tsx test/integration-tests.ts ...` | Runs all 5 automated test suites |
+| Script  | Command                                                       | Purpose                                        |
+| ------- | ------------------------------------------------------------- | ---------------------------------------------- |
+| `dev`   | `next dev`                                                    | Starts local Next.js dev server with Turbopack |
+| `build` | `next build`                                                  | Creates production-optimized standalone build  |
+| `start` | `next start`                                                  | Runs the production Next.js server             |
+| `lint`  | `eslint`                                                      | Executes ESLint to enforce code quality        |
+| `test`  | `tsx test/unit-tests.ts && tsx test/integration-tests.ts ...` | Runs all 5 automated test suites               |
 
 ### Background Worker (`rssfusion/worker/`)
 
-| Script | Command | Purpose |
-|---|---|---|
-| `dev` | `npx tsx src/index.ts` | Runs the worker locally with live TypeScript execution |
-| `build` | `tsc` | Transpiles TypeScript source to `./dist` |
-| `start` | `node dist/index.js` | Executes the compiled production worker |
+| Script  | Command                | Purpose                                                |
+| ------- | ---------------------- | ------------------------------------------------------ |
+| `dev`   | `npx tsx src/index.ts` | Runs the worker locally with live TypeScript execution |
+| `build` | `tsc`                  | Transpiles TypeScript source to `./dist`               |
+| `start` | `node dist/index.js`   | Executes the compiled production worker                |
 
 ---
 
@@ -415,6 +426,7 @@ npm test
 ```
 
 ### 5 Test Suites Included:
+
 1. **`test/unit-tests.ts`**: SSRF IP classification, URL checks, article URL canonicalization, HTML stripping, exact-phrase keyword matching.
 2. **`test/integration-tests.ts`**: `ApiError` status mapping, form validation schemas, cursor pagination contracts.
 3. **`test/phase8-tests.ts`**: OPML generate & parse round-trip, arbitrary XML resilience, email notification idempotency, manual refresh rate limiting.
@@ -436,12 +448,14 @@ npm test
 ## 🚢 Deployment
 
 ### 1. Web Application (Vercel)
+
 1. Import the repository on [Vercel](https://vercel.com).
 2. Set Framework Preset to **Next.js**.
 3. Supply the environment variables from `.env.example`.
 4. Deploy!
 
 ### 2. Background Worker (VPS / Docker / Railway)
+
 - **Docker:**
   ```bash
   cd worker
@@ -469,3 +483,4 @@ npm test
 ## 📄 License
 
 This project is open-source and licensed under the [MIT License](LICENSE).
+Version 1.1

@@ -30,10 +30,17 @@ export async function GET(request: Request) {
       limit,
     });
 
-    return NextResponse.json({
-      data: articles,
-      nextCursor: articles.length === limit ? articles[articles.length - 1].publishedAt : null,
-    });
+    return NextResponse.json(
+      {
+        data: articles,
+        nextCursor: articles.length === limit ? articles[articles.length - 1].publishedAt : null,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=10, stale-while-revalidate=20",
+        },
+      }
+    );
   } catch (err: unknown) {
     return handleApiError(err);
   }

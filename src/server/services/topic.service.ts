@@ -1,6 +1,16 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { checkTopicQuota } from "./quota.service";
+import { checkTopicQuota, invalidateQuotaUsageCache } from "./quota.service";
+import { invalidateDashboardStatsCache } from "./dashboard.service";
+import { invalidateAnalyticsCache } from "./analytics.service";
 import { Topic } from "@/types/models";
+
+async function invalidateTopicCaches(userId: string) {
+  await Promise.all([
+    invalidateDashboardStatsCache(userId),
+    invalidateAnalyticsCache(userId),
+    invalidateQuotaUsageCache(userId),
+  ]).catch(() => {});
+}
 
 interface TopicKeywordNested {
   id: string;
@@ -79,6 +89,8 @@ export async function createTopic(
     throw error;
   }
 
+  await invalidateTopicCaches(userId);
+
   return mapTopicRow(data as TopicDbRow);
 }
 
@@ -109,6 +121,9 @@ export async function updateTopic(
     }
     throw error;
   }
+
+  await invalidateTopicCaches(userId);
+
   return mapTopicRow(data as unknown as TopicDbRow);
 }
 
@@ -121,5 +136,8 @@ export async function deleteTopic(userId: string, topicId: string) {
     .eq("user_id", userId);
 
   if (error) throw error;
+
+  await invalidateTopicCaches(userId);
+
   return { success: true };
 }
