@@ -172,58 +172,52 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
   };
 
   const handleToggleSave = React.useCallback(async (articleId: string) => {
+    let wasSaved = false;
     setArticles((prev) => {
       const target = prev.find((a) => a.id === articleId);
       if (!target) return prev;
-      const newSaved = !target.isSaved;
-      return prev.map((a) => (a.id === articleId ? { ...a, isSaved: newSaved } : a));
+      wasSaved = Boolean(target.isSaved);
+      return prev.map((a) => (a.id === articleId ? { ...a, isSaved: !wasSaved } : a));
     });
 
     setActiveReaderArticle((prev) =>
       prev && prev.id === articleId ? { ...prev, isSaved: !prev.isSaved } : prev
     );
 
-    const target = articles.find((a) => a.id === articleId);
-    if (!target) return;
-    const newSaved = !target.isSaved;
-
     try {
-      if (newSaved) {
+      if (!wasSaved) {
         await articlesApi.save(articleId);
       } else {
         await articlesApi.unsave(articleId);
       }
     } catch {
       setArticles((prev) =>
-        prev.map((a) => (a.id === articleId ? { ...a, isSaved: target.isSaved } : a))
+        prev.map((a) => (a.id === articleId ? { ...a, isSaved: wasSaved } : a))
       );
     }
-  }, [articles]);
+  }, []);
 
   const handleToggleRead = React.useCallback(async (articleId: string) => {
+    let wasRead = false;
     setArticles((prev) => {
       const target = prev.find((a) => a.id === articleId);
       if (!target) return prev;
-      const newRead = !target.isRead;
-      return prev.map((a) => (a.id === articleId ? { ...a, isRead: newRead } : a));
+      wasRead = Boolean(target.isRead);
+      return prev.map((a) => (a.id === articleId ? { ...a, isRead: !wasRead } : a));
     });
 
     setActiveReaderArticle((prev) =>
       prev && prev.id === articleId ? { ...prev, isRead: !prev.isRead } : prev
     );
 
-    const target = articles.find((a) => a.id === articleId);
-    if (!target) return;
-    const newRead = !target.isRead;
-
     try {
-      await articlesApi.markRead(articleId, newRead);
+      await articlesApi.markRead(articleId, !wasRead);
     } catch {
       setArticles((prev) =>
-        prev.map((a) => (a.id === articleId ? { ...a, isRead: target.isRead } : a))
+        prev.map((a) => (a.id === articleId ? { ...a, isRead: wasRead } : a))
       );
     }
-  }, [articles]);
+  }, []);
 
   const handleToggleSelect = React.useCallback((articleId: string) => {
     setSelectedIds((prev) => {
@@ -235,6 +229,10 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
       }
       return next;
     });
+  }, []);
+
+  const handleOpenReader = React.useCallback((article: Article) => {
+    setActiveReaderArticle(article);
   }, []);
 
   const handleToggleSelectAll = () => {
@@ -414,10 +412,7 @@ function ArticlesPageContent({ initialQuery }: { initialQuery: string }) {
               onToggleSelect={handleToggleSelect}
               onToggleSave={handleToggleSave}
               onToggleRead={handleToggleRead}
-              onOpenReader={(a) => {
-                setFocusedIndex(idx);
-                setActiveReaderArticle(a);
-              }}
+              onOpenReader={handleOpenReader}
             />
           ))}
 

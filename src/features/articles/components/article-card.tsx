@@ -381,6 +381,7 @@ export function ArticleCardComponent({
 
           {article.imageUrl && !imageError && (
             <div className="relative shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted/30 w-full sm:w-36 h-32 sm:h-24">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={article.imageUrl}
                 alt=""

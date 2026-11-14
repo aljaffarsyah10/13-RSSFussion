@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx test/unit-tests.ts && tsx test/integration-tests.ts && tsx test/phase8-tests.ts && tsx test/security-tests.ts && tsx test/features-tests.ts"
+    "test": "tsx test/unit-tests.ts && tsx test/integration-tests.ts && tsx test/phase8-tests.ts && tsx test/security-tests.ts && tsx test/features-tests.ts && tsx test/performance-tests.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
