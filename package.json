@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "backup": "tsx scripts/db-backup.ts",
-    "test": "tsx test/unit-tests.ts && tsx test/integration-tests.ts && tsx test/phase8-tests.ts && tsx test/security-tests.ts && tsx test/features-tests.ts && tsx test/performance-tests.ts && tsx test/e2e-workflow-tests.ts && tsx test/saas-infrastructure-tests.ts && tsx test/observability-tests.ts"
+    "restore": "tsx scripts/db-restore.ts",
+    "verify:migrations": "tsx scripts/verify-migrations.ts",
+    "test": "tsx test/unit-tests.ts && tsx test/integration-tests.ts && tsx test/phase8-tests.ts && tsx test/security-tests.ts && tsx test/features-tests.ts && tsx test/performance-tests.ts && tsx test/e2e-workflow-tests.ts && tsx test/saas-infrastructure-tests.ts && tsx test/observability-tests.ts && tsx test/production-readiness-tests.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

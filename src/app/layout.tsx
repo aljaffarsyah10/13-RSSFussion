@@ -23,6 +23,7 @@ export const metadata: Metadata = {
   },
   description:
     "Aggregated information intelligence platform for monitoring RSS feeds, tech publications, and critical keywords in real time.",
+  applicationName: "RSSFusion",
   keywords: [
     "RSS",
     "Atom",
@@ -31,13 +32,32 @@ export const metadata: Metadata = {
     "Keyword Monitoring",
     "Tech News",
     "RSS Aggregator",
+    "SaaS",
+    "AI News Monitor",
   ],
   authors: [{ name: "RSSFusion Team" }],
+  creator: "RSSFusion",
+  publisher: "RSSFusion",
+  alternates: {
+    canonical: baseUrl,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   openGraph: {
     title: "RSSFusion — Information Intelligence Platform",
     description: "Monitor RSS feeds, tech publications, and keywords with automated background ingestion.",
     url: baseUrl,
     siteName: "RSSFusion",
+    locale: "en_US",
     type: "website",
   },
   twitter: {
@@ -45,6 +65,38 @@ export const metadata: Metadata = {
     title: "RSSFusion — Information Intelligence Platform",
     description: "Monitor RSS feeds and keywords with automated background ingestion.",
   },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "RSSFusion",
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      name: "RSSFusion",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      url: baseUrl,
+      description:
+        "High-performance automated RSS feed aggregator and keyword monitoring platform with real-time analytics.",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+    },
+    {
+      "@type": "Organization",
+      name: "RSSFusion",
+      url: baseUrl,
+      logo: `${baseUrl}/icon.svg`,
+    },
+  ],
 };
 
 export default function RootLayout({
@@ -57,6 +109,12 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <TooltipProvider>{children}</TooltipProvider>
       </body>

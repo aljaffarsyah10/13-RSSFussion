@@ -1,269 +1,198 @@
 # RSSFusion — Production Deployment & Operations Guide
 
-> **Document:** Production Architecture & Deployment Playbook  
-> **Target Release:** Version 1.0.0  
-> **Last Updated:** November 6, 2026  
+> **Document:** Production Architecture, Rollout & Operations Playbook  
+> **Target Release:** Version 1.2.0 (Production-Ready)  
+> **Last Updated:** November 2026  
 
 ---
 
 ## 1. Production Architecture Overview
 
-RSSFusion uses a **modular decoupled architecture** to ensure maximum reliability, cost efficiency, and separation of concerns:
+RSSFusion uses a **modular, decoupled, high-resilience architecture** designed for high throughput, sub-millisecond cache latency, and automated background RSS ingestion:
 
 ```
 [ End Users / Web Browsers ]
              |
-             v HTTPS
-[ Vercel Edge / CDN / Serverless ]
-  • Next.js 16.4.5 App Router
-  • Tailwind CSS v4 UI + Base-UI
-  • API Route Handlers (CRUD, Auth, Analytics, OPML)
+             v HTTPS (HSTS, TLS 1.3)
+[ Next.js 16 Web Application ]
+  • Turbopack Production Engine
+  • App Router (Static Pre-rendering & Dynamic Edge API Routes)
+  • Structured JSON Logger + Error Ring Buffer
+  • Health Probes (/api/health, /api/health/liveness, /api/health/readiness)
+  • Prometheus Metrics Exporter (/api/monitoring/metrics)
              |
-             +-----------------------+
-             |                       |
-             v HTTPS/WSS             v PostgreSQL Wire (Port 5432/6543)
-[ Supabase Managed Platform ] <------+--------------------------+
-  • PostgreSQL 15+ Database                                     |
-  • Row Level Security (RLS)                                    |
-  • Supabase Auth (JWT & Cookies)                               |
-                                                                |
-                                             [ Dedicated VPS RSS Worker ]
-                                               • Ubuntu 24.04 LTS / Debian 12
-                                               • Node.js 22 LTS / Systemd / Docker
-                                               • Polling Loop (FOR UPDATE SKIP LOCKED)
-                                               • Real-time Keyword & Topic Engine
-                                               • Notification Dispatcher
+             +-----------------------+-----------------------+
+             |                       |                       |
+             v HTTPS / WSS           v Wire (5432/6543)      v RESP Protocol (6379)
+[ Supabase PostgreSQL + Auth ]       |                 [ Redis In-Memory Cache ]
+  • Row Level Security (RLS)         |                   • Two-Tier Hybrid Cache
+  • 5 Verified Migration Stages      |                   • Cache Invalidation Engine
+  • B-Tree & Trigram GIN Indexes     |                   • Quota & Rate Limit Cache
+                                     |
+                 [ Dedicated Background Ingestion Worker ]
+                   • Node.js 22 LTS / Docker / Systemd
+                   • SSRF-Safe DNS Pre-resolution & CIDR Guard
+                   • FOR UPDATE SKIP LOCKED Concurrency Pool
+                   • Real-time Keyword & Topic Engine
+                   • Resend Transactional Alert Dispatcher
 ```
 
 ---
 
 ## 2. Environment Variables Checklist
 
-### 2.1. Next.js Web Application (Configured on Vercel)
+### 2.1. Next.js Web Application (`.env.local` / Cloud Platform Secrets)
 
-| Variable | Scope | Description | Example |
+| Variable | Scope | Description | Production Example |
 |---|---|---|---|
-| `NEXT_PUBLIC_APP_URL` | Public / Client | Canonical public URL of your deployment | `https://rssfusion.com` |
-| `NEXT_PUBLIC_SUPABASE_URL` | Public / Client | Supabase Project API endpoint | `https://xxxx.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public / Client | Supabase client anon public key | `eyJhbGciOi...` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Secret / Server Only | High-privilege administrative key | `eyJhbGciOi...` |
-| `RESEND_API_KEY` | Secret / Server Only | Optional email delivery API key | `re_xxxxxxxxxxxx` |
-| `RESEND_FROM_EMAIL` | Secret / Server Only | Verified email sender identity | `RSSFusion Alerts <alerts@rssfusion.com>` |
+| `NODE_ENV` | Server | Node runtime mode | `production` |
+| `NEXT_PUBLIC_APP_URL` | Public / Client | Canonical public URL of your deployment | `https://rssfusion.yourdomain.com` |
+| `PORT` | Server | Application listening port | `3000` |
+| `NEXT_PUBLIC_SUPABASE_URL` | Public / Client | Supabase Project API endpoint | `https://[REF].supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public / Client | Supabase public client JWT key | `eyJhbGciOi...` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Secret / Server | Administrative service key (for backups, auth) | `eyJhbGciOi...` |
+| `CACHE_DRIVER` | Server | Cache backend selector (`redis` or `memory`) | `redis` |
+| `REDIS_URL` | Secret / Server | Redis connection string (Upstash / Managed Redis) | `redis://default:[PWD]@[HOST]:6379` |
+| `RESEND_API_KEY` | Secret / Server | Transactional email provider key | `re_xxxxxxxxxxxx` |
+| `RESEND_FROM_EMAIL` | Secret / Server | Verified sender email address | `RSSFusion <alerts@yourdomain.com>` |
+| `BACKUP_RETENTION_COUNT` | Server | Number of local backup archives to retain | `7` |
 
-### 2.2. Dedicated Background Worker (Configured on VPS `.env`)
+### 2.2. Dedicated Background Worker (`worker/.env`)
 
 | Variable | Scope | Description | Recommended Setting |
 |---|---|---|---|
 | `WORKER_DATABASE_URL` | Secret / Server | Direct PostgreSQL connection string to Supabase | `postgres://postgres:[PWD]@db.[REF].supabase.co:5432/postgres` |
-| `WORKER_POLL_INTERVAL_MS` | Server | Polling frequency to check for pending feeds | `30000` (30 seconds) |
-| `WORKER_CONCURRENCY` | Server | Number of feeds to process concurrently per cycle | `5` (tune based on VPS CPU/RAM) |
-| `WORKER_FETCH_TIMEOUT_MS` | Server | Hard socket timeout for slow/hung RSS sources | `15000` (15 seconds) |
-| `WORKER_USER_AGENT` | Server | User-Agent header emitted by ingestion crawler | `RSSFusionBot/1.0 (+https://rssfusion.com/bot)` |
+| `WORKER_POLL_INTERVAL_MS` | Server | Frequency of polling loop checking for due feeds | `30000` (30 seconds) |
+| `WORKER_CONCURRENCY` | Server | Number of feeds fetched in parallel per cycle | `5` |
+| `WORKER_FETCH_TIMEOUT_MS` | Server | Socket timeout for non-responsive feed servers | `15000` (15 seconds) |
+| `WORKER_USER_AGENT` | Server | Ingestion crawler HTTP User-Agent header | `RSSFusionBot/1.0 (+https://yourdomain.com/bot)` |
 
 ---
 
-## 3. Database Deployment (Supabase)
+## 3. Database Deployment & Migration Audit (Supabase)
 
-### 3.1. Option A: Automated Supabase CLI
+### 3.1. Sequential Migrations
+RSSFusion maintains 5 sequential, deterministic SQL migrations in `supabase/migrations/`:
+
+1. `20261106000000_create_initial_schema.sql`: Core schema (`profiles`, `rss_sources`, `articles`, `topics`, `keywords`, `saved_articles`, `article_read_status`, `feed_fetch_logs`) with initial triggers and RLS policies.
+2. `20261106000001_create_notifications_and_settings.sql`: Notification preferences and email dispatch queues.
+3. `20261111000002_audit_security_and_integrity_fixes.sql`: Foreign keys, constraints, and security check validations.
+4. `20261113000003_performance_and_scalability_indexes.sql`: Trigram GIN indexes for search and composite B-tree indexes for cursor pagination.
+5. `20261114000004_saas_billing_and_onboarding.sql`: Multi-tenancy columns, subscriptions, billing invoices, and onboarding state.
+
+### 3.2. Automated Migration Audit Tool
+Before rolling out to production, run the automated verification script:
+
 ```bash
-# 1. Install Supabase CLI
-npm install -g supabase
-
-# 2. Login and Link Project
-supabase login
-supabase link --project-ref YOUR_PROJECT_REF
-
-# 3. Push all sequential migrations
-supabase db push
+npm run verify:migrations
 ```
+*Expected Output: `>>> ALL DATABASE MIGRATIONS VERIFIED SUCCESSFULLY <<<`*
 
-### 3.2. Option B: Direct SQL Execution via Supabase Dashboard
-Execute the migration scripts in sequential order inside the **Supabase Dashboard > SQL Editor**:
-1. [`supabase/migrations/20261106000000_create_initial_schema.sql`](file:///d:/10Project/13-RSSFussion/rssfusion/supabase/migrations/20261106000000_create_initial_schema.sql)
-2. [`supabase/migrations/20261106000001_create_notifications_and_settings.sql`](file:///d:/10Project/13-RSSFussion/rssfusion/supabase/migrations/20261106000001_create_notifications_and_settings.sql)
-
-### 3.3. Post-Migration Verification
-Run this diagnostic query in SQL Editor to confirm all 10 tables and RLS are active:
-```sql
-SELECT tablename, rowsecurity 
-FROM pg_tables 
-WHERE schemaname = 'public';
-```
-*Expected: `profiles`, `rss_sources`, `articles`, `topics`, `keywords`, `article_keyword_matches`, `saved_articles`, `article_read_status`, `feed_fetch_logs`, `email_notifications` — all with `rowsecurity = true`.*
-
----
-
-## 4. Next.js Web Deployment (Vercel)
-
-### 4.1. Option A: Vercel GitHub Integration (Recommended)
-1. Push your repository to GitHub / GitLab.
-2. In the Vercel Dashboard, select **Add New... > Project** and import the repository.
-3. Set **Root Directory** to `rssfusion` (if monorepo) or root.
-4. Add the 4 required Environment Variables under **Settings > Environment Variables**.
-5. Click **Deploy**.
-
-### 4.2. Option B: Vercel CLI
+### 3.3. Applying Migrations via Supabase CLI
 ```bash
-# 1. Install CLI
-npm install -g vercel
+# Link project
+npx supabase link --project-ref YOUR_PROJECT_REF
 
-# 2. Login
-vercel login
-
-# 3. Deploy to Preview
-cd rssfusion
-vercel
-
-# 4. Deploy to Production
-vercel --prod
+# Push all migrations
+npx supabase db push
 ```
 
 ---
 
-## 5. Dedicated Worker Deployment (Ubuntu VPS)
+## 4. Production Deployment Options
 
-### 5.1. VPS Prerequisites
-```bash
-# Update base packages
-sudo apt update && sudo apt upgrade -y
+### Option A: Serverless Web (Vercel) + Dedicated Worker (Railway/Render)
 
-# Install Node.js 22 LTS
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs git build-essential
+#### 1. Next.js Web on Vercel
+1. Import the repository in [Vercel](https://vercel.com).
+2. Framework Preset: **Next.js**.
+3. Add the required environment variables from Section 2.1.
+4. Deploy! Vercel automatically runs Next.js Turbopack compilation and routes edge traffic.
 
-# Verify
-node -v  # v22.x
-npm -v   # v10.x
-```
-
-### 5.2. Create Dedicated System User
-```bash
-sudo useradd -r -s /bin/false -d /opt/rssfusion rssfusion
-sudo mkdir -p /opt/rssfusion/worker
-sudo chown -R rssfusion:rssfusion /opt/rssfusion
-```
-
-### 5.3. Deploy Worker Application
-```bash
-# Clone or copy worker files to /opt/rssfusion/worker
-cd /opt/rssfusion/worker
-
-# Install dependencies and compile TypeScript
-sudo -u rssfusion npm ci --omit=dev
-sudo -u rssfusion npm run build
-
-# Create secured production environment file
-sudo -u rssfusion cp .env.example .env
-sudo -u rssfusion nano .env
-
-# Lock down file permissions (read-only for rssfusion user)
-sudo chmod 600 /opt/rssfusion/worker/.env
-```
-
-### 5.4. Configure and Enable Systemd Service
-```bash
-# Copy systemd unit file
-sudo cp /opt/rssfusion/worker/rssfusion-worker.service /etc/systemd/system/
-
-# Reload systemd daemon
-sudo systemctl daemon-reload
-
-# Enable service on server boot
-sudo systemctl enable rssfusion-worker
-
-# Start service
-sudo systemctl start rssfusion-worker
-
-# Check operational status
-sudo systemctl status rssfusion-worker
-
-# Follow real-time ingestion logs
-sudo journalctl -u rssfusion-worker -f
-```
+#### 2. Worker on Railway / Render / Fly.io
+Deploy the `./worker` directory as a Docker service or Node.js background worker:
+- Root directory: `./worker`
+- Start command: `npm run build && npm start`
+- Environment: Set `WORKER_DATABASE_URL` and worker variables.
 
 ---
 
-## 6. DNS & Custom Domain Configuration
+### Option B: Unified Production Docker Compose (VPS / Self-Hosted)
 
-In your DNS provider (Cloudflare, Namecheap, Route53), configure the following records:
+For single-server deployments (Hetzner, DigitalOcean, AWS EC2):
 
-| Record Type | Host / Name | Target / Value | TTL | Purpose |
-|---|---|---|---|---|
-| **A** | `@` | `76.76.21.21` (Vercel Anycast IP) | Auto / 300s | Root domain apex |
-| **CNAME** | `www` | `cname.vercel-dns.com` | Auto / 300s | WWW subdomain |
-
-*Note: The background worker runs on the VPS without requiring any inbound public ports or public DNS records. All external requests made by the worker are strictly outbound HTTP/HTTPS queries to external RSS publishers.*
-
----
-
-## 7. Monitoring & Health Checks
-
-1. **Vercel Web Analytics & Logs:**
-   - Monitor 5xx server errors, response latencies, and route render times in the Vercel Dashboard under **Logs** and **Speed Insights**.
-2. **Worker Process Monitoring:**
+1. **Clone repository and set up environment:**
    ```bash
-   # Check active process state
-   sudo systemctl is-active rssfusion-worker
+   git clone https://github.com/your-org/rssfusion.git /opt/rssfusion
+   cd /opt/rssfusion
+   cp .env.example .env
+   # Edit .env with production credentials
+   ```
 
-   # Check recent restart count and memory usage
-   systemctl show rssfusion-worker --property=ActiveState,SubState,NRestarts,MemoryCurrent
+2. **Launch all services via Docker Compose:**
+   ```bash
+   docker compose -f docker-compose.production.yml up -d --build
    ```
-3. **Database Feed Fetch Diagnostics:**
-   - Query recent crawler errors directly from the dashboard UI via `/dashboard/sources > Health & Diagnostics`, or run:
-   ```sql
-   SELECT source_id, status, http_status, error_message, created_at 
-   FROM feed_fetch_logs 
-   WHERE status = 'failure' 
-   ORDER BY created_at DESC 
-   LIMIT 20;
+
+3. **Verify running containers:**
+   ```bash
+   docker compose -f docker-compose.production.yml ps
    ```
+   *Expected: `rssfusion-web` (healthy), `rssfusion-worker` (running), `rssfusion-redis` (healthy).*
 
 ---
 
-## 8. Backup & Disaster Recovery Strategy
+## 5. Backup & Disaster Recovery Operations
 
-1. **Automated Supabase Backups:**
-   - Free Tier: Daily automated backups retained for 7 days.
-   - Pro/Team Tier: Daily automated backups + Point-In-Time-Recovery (PITR) with WAL archiving.
-2. **Manual Snapshot Command (pg_dump):**
-   ```bash
-   # Create compressed schema + data snapshot
-   pg_dump "postgres://postgres:[PWD]@db.[REF].supabase.co:5432/postgres" \
-     -Fc -f "rssfusion_backup_$(date +%Y%m%d_%H%M%S).dump"
-   ```
-3. **Restoration Command:**
-   ```bash
-   # Restore snapshot to target database
-   pg_restore -d "postgres://postgres:[PWD]@db.[REF].supabase.co:5432/postgres" \
-     --clean --if-exists "rssfusion_backup_XXXXXXXX.dump"
-   ```
+RSSFusion includes a built-in cryptographic backup and restoration engine:
 
----
-
-## 9. Rollback Playbook
-
-### 9.1. Web Application Rollback (Vercel)
-Vercel keeps immutable deployment artifacts for every build:
-1. In the Vercel Dashboard, navigate to **Deployments**.
-2. Locate the previous stable production deployment.
-3. Click the three dots menu `...` and select **Instant Rollback**.
-4. Traffic is redirected to the previous build in under 5 seconds with zero downtime.
-
-### 9.2. Worker Rollback (VPS)
+### 5.1. Creating a Production Database Snapshot
 ```bash
-cd /opt/rssfusion/worker
-sudo -u rssfusion git checkout PREVIOUS_STABLE_TAG
-sudo -u rssfusion npm run build
-sudo systemctl restart rssfusion-worker
+npm run backup
+```
+- Exports all application tables into an encrypted, SHA-256 checksummed snapshot in `./backups/`.
+- Verifies checksum automatically before concluding.
+- Enforces retention policy, pruning backups older than `BACKUP_RETENTION_COUNT` (default: 7).
+
+### 5.2. Disaster Recovery & Restoring from Backup
+```bash
+# 1. Perform a non-destructive Dry Run to verify schema compatibility and record counts
+npm run restore -- --dry-run
+
+# 2. Perform live restoration (upserting into database in proper dependency order)
+npm run restore
 ```
 
 ---
 
-## 10. Operational Troubleshooting
+## 6. Observability, Health Checks & Monitoring
 
-| Symptom | Probable Cause | Diagnostic / Remedy |
-|---|---|---|
-| **Feed Ingestion Error 422** | SSRF Validator rejected URL | Feed resolves to a private IP (`127.x`, `10.x`, `192.168.x`). Verify feed URL is publicly reachable. |
-| **Worker Ingestion Stalls** | Worker exhausted connection pool | Check `WORKER_CONCURRENCY` vs PostgreSQL `max_connections`. Ensure timeouts are enforced (`WORKER_FETCH_TIMEOUT_MS=15000`). |
-| **Manual Refresh Error 429** | Rate limiting active | Cooldown period of 60 seconds is enforced per feed. Wait 1 minute before retrying. |
-| **Authentication Redirect Loop** | Site URL mismatch | Ensure Supabase Auth **Site URL** and **Redirect URLs** match `NEXT_PUBLIC_APP_URL` in Supabase Dashboard. |
+RSSFusion provides standard health and telemetry endpoints for uptime monitoring and Prometheus/Grafana:
+
+### 6.1. Health Check Probes
+- **Deep System Diagnostics:** `GET https://yourdomain.com/api/health`
+  - Evaluates database connectivity, query latency, Redis cache response, and memory heap status.
+  - Returns HTTP 200 (Healthy), HTTP 207 (Degraded), or HTTP 503 (Unhealthy).
+- **Liveness Probe (K8s/Docker):** `GET https://yourdomain.com/api/health/liveness`
+- **Readiness Probe (K8s/Docker):** `GET https://yourdomain.com/api/health/readiness`
+
+### 6.2. Prometheus Metrics Scraping
+- **Metrics Endpoint:** `GET https://yourdomain.com/api/monitoring/metrics`
+  - Supports Prometheus text format (`Accept: text/plain` or `?format=prometheus`).
+  - Scrapes: `http_requests_total`, `http_errors_total`, `http_request_duration_ms` (avg, p50, p95, max), `process_uptime_seconds`, `nodejs_heap_used_bytes`.
+
+---
+
+## 7. Production Readiness Checklist
+
+Before public launch, verify the following:
+
+- [ ] All 5 Supabase migrations applied (`npm run verify:migrations`).
+- [ ] Database RLS enabled on all 10 public tables.
+- [ ] Redis cache configured (`CACHE_DRIVER=redis`) and tested.
+- [ ] All 10 automated test suites passing (`npm test`).
+- [ ] Zero ESLint warnings or errors (`npm run lint`).
+- [ ] Next.js Turbopack production build succeeds (`npm run build`).
+- [ ] SSL certificate active with HSTS enabled (A+ on SSL Labs).
+- [ ] Web App Manifest and JSON-LD structured data validated.
+- [ ] Cron schedule active for daily database snapshot (`npm run backup`).

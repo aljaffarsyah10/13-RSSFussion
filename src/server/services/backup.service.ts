@@ -270,3 +270,102 @@ async function rotateBackups(keepCount: number): Promise<void> {
     }
   }
 }
+
+export interface RestoreResult {
+  success: boolean;
+  backupId: string;
+  dryRun: boolean;
+  tablesRestored: Record<string, number>;
+  totalRecordsRestored: number;
+  error?: string;
+}
+
+/**
+ * Restores database state from a validated backup file or manifest
+ */
+export async function restoreDatabaseBackup(
+  backupInput: string | BackupManifest,
+  options?: { dryRun?: boolean }
+): Promise<RestoreResult> {
+  const dryRun = options?.dryRun ?? false;
+  const verification = verifyBackupIntegrity(backupInput);
+
+  if (!verification.valid) {
+    return {
+      success: false,
+      backupId: verification.backupId,
+      dryRun,
+      tablesRestored: {},
+      totalRecordsRestored: 0,
+      error: `Backup integrity check failed: ${verification.error}`,
+    };
+  }
+
+  let manifest: BackupManifest;
+  if (typeof backupInput === "string") {
+    const filePath = path.isAbsolute(backupInput)
+      ? backupInput
+      : path.join(BACKUP_DIR, backupInput);
+    const content = fs.readFileSync(filePath, "utf8");
+    manifest = JSON.parse(content) as BackupManifest;
+  } else {
+    manifest = backupInput;
+  }
+
+  const tablesRestored: Record<string, number> = {};
+  let totalRecordsRestored = 0;
+
+  if (dryRun) {
+    for (const table of BACKUP_TABLES) {
+      const rows = (manifest.tables[table] || []) as unknown[];
+      tablesRestored[table] = rows.length;
+      totalRecordsRestored += rows.length;
+    }
+    return {
+      success: true,
+      backupId: manifest.backupId,
+      dryRun: true,
+      tablesRestored,
+      totalRecordsRestored,
+    };
+  }
+
+  const supabase = getBackupSupabaseClient();
+
+  // Restore in dependency order
+  for (const table of BACKUP_TABLES) {
+    const rows = (manifest.tables[table] || []) as Record<string, unknown>[];
+    if (rows.length === 0) {
+      tablesRestored[table] = 0;
+      continue;
+    }
+
+    try {
+      const chunkSize = 100;
+      let insertedCount = 0;
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        const batch = rows.slice(i, i + chunkSize);
+        const { error } = await supabase.from(table).upsert(batch);
+        if (error) {
+          logger.warn(`Restoration upsert warning for ${table}: ${error.message}`);
+        } else {
+          insertedCount += batch.length;
+        }
+      }
+      tablesRestored[table] = insertedCount;
+      totalRecordsRestored += insertedCount;
+    } catch (tblErr) {
+      logger.error(`Restoration failed for table ${table}`, undefined, tblErr);
+      tablesRestored[table] = 0;
+    }
+  }
+
+  return {
+    success: true,
+    backupId: manifest.backupId,
+    dryRun: false,
+    tablesRestored,
+    totalRecordsRestored,
+  };
+}
+
