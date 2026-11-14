@@ -93,14 +93,32 @@ export async function getUserQuotaUsage(userId: string) {
       supabase.from("keywords").select("*", { count: "exact", head: true }).eq("user_id", userId),
     ]);
 
+    const sources = sourcesRes.count || 0;
+    const topics = topicsRes.count || 0;
+    const keywords = keywordsRes.count || 0;
+
+    const sourcesPct = Math.min(100, Math.round((sources / limits.maxSources) * 100));
+    const topicsPct = Math.min(100, Math.round((topics / limits.maxTopics) * 100));
+    const keywordsPct = Math.min(100, Math.round((keywords / limits.maxKeywords) * 100));
+
+    const isNearLimit = sourcesPct >= 80 || topicsPct >= 80 || keywordsPct >= 80;
+    const isAtLimit = sourcesPct >= 100 || topicsPct >= 100 || keywordsPct >= 100;
+
     return {
       plan,
       limits,
       usage: {
-        sources: sourcesRes.count || 0,
-        topics: topicsRes.count || 0,
-        keywords: keywordsRes.count || 0,
+        sources,
+        topics,
+        keywords,
       },
+      percentages: {
+        sources: sourcesPct,
+        topics: topicsPct,
+        keywords: keywordsPct,
+      },
+      isNearLimit,
+      isAtLimit,
     };
   });
 }

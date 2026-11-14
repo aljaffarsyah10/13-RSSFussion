@@ -399,8 +399,62 @@ export interface QuotaUsage {
     topics: number;
     keywords: number;
   };
+  percentages?: {
+    sources: number;
+    topics: number;
+    keywords: number;
+  };
+  isNearLimit?: boolean;
+  isAtLimit?: boolean;
 }
 
 export const quotaApi = {
   getQuota: () => apiRequest<QuotaUsage>("/api/quota", { retries: 1 }),
+};
+
+export const billingApi = {
+  getSubscription: () =>
+    apiRequest<import("@/types/models").SubscriptionRecord>("/api/billing/subscription", { retries: 1 }),
+  changePlan: (plan: import("@/types/models").SubscriptionPlan, billingCycle: import("@/types/models").BillingCycle = "monthly") =>
+    apiRequest<{
+      subscription: import("@/types/models").SubscriptionRecord;
+      invoice: import("@/types/models").BillingInvoice;
+    }>("/api/billing/subscription", {
+      method: "POST",
+      body: JSON.stringify({ plan, billingCycle }),
+    }),
+  cancelSubscription: () =>
+    apiRequest<import("@/types/models").SubscriptionRecord>("/api/billing/subscription", {
+      method: "DELETE",
+    }),
+  listInvoices: () =>
+    apiRequest<import("@/types/models").BillingInvoice[]>("/api/billing/invoices", { retries: 1 }),
+};
+
+export const userApi = {
+  getProfile: () => apiRequest<import("@/types/models").UserProfile>("/api/user/profile", { retries: 1 }),
+  updateProfile: (data: { fullName?: string; organizationName?: string; avatarUrl?: string }) =>
+    apiRequest<import("@/types/models").UserProfile>("/api/user/profile", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  updatePassword: (newPassword: string) =>
+    apiRequest<{ success: boolean; message: string }>("/api/user/password", {
+      method: "PATCH",
+      body: JSON.stringify({ newPassword }),
+    }),
+};
+
+export const onboardingApi = {
+  getState: () => apiRequest<import("@/types/models").OnboardingState>("/api/onboarding", { retries: 1 }),
+  complete: (payload: {
+    selectedPresetId?: string;
+    customTopicName?: string;
+    customKeyword?: string;
+    selectedFeedUrls?: string[];
+  }) =>
+    apiRequest<{ success: boolean }>("/api/onboarding", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };

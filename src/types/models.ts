@@ -83,3 +83,55 @@ export interface DashboardStats {
   totalTopics: number;
   totalSavedArticles: number;
 }
+
+export type SubscriptionStatus = "active" | "past_due" | "canceled" | "trialing";
+export type BillingCycle = "monthly" | "annual";
+
+export interface SubscriptionRecord {
+  id: string;
+  userId: string;
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+  billingCycle: BillingCycle;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BillingInvoice {
+  id: string;
+  userId: string;
+  invoiceNumber: string;
+  amountCents: number;
+  currency: string;
+  status: "paid" | "pending" | "failed" | "refunded";
+  plan: SubscriptionPlan;
+  billingCycle: BillingCycle;
+  paidAt?: string;
+  createdAt: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  fullName?: string;
+  avatarUrl?: string;
+  plan: SubscriptionPlan;
+  organizationName?: string;
+  role: "owner" | "admin" | "member";
+  onboardingCompleted: boolean;
+  createdAt: string;
+}
+
+export interface OnboardingState {
+  completed: boolean;
+  suggestedTopics: Array<{
+    id: string;
+    name: string;
+    description: string;
+    defaultKeywords: string[];
+    suggestedFeeds: Array<{ name: string; url: string; siteUrl: string }>;
+  }>;
+}

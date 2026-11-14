@@ -12,15 +12,20 @@ import { ArticleReaderDialog } from "@/features/articles/components/article-read
 import { SourceFormDialog } from "@/features/sources/components/source-form-dialog";
 import { TrendAnalyticsCard } from "@/features/analytics/components/trend-analytics-card";
 import { SourceFormValues } from "@/lib/validation/schemas";
-import { dashboardApi, articlesApi, sourcesApi, quotaApi, QuotaUsage } from "@/lib/api/client";
-import { Article, DashboardStats } from "@/types/models";
-import { Globe, Newspaper, FolderTree, Bookmark, Rss, ArrowRight } from "lucide-react";
+import { dashboardApi, articlesApi, sourcesApi, quotaApi, onboardingApi, QuotaUsage } from "@/lib/api/client";
+import { Article, DashboardStats, OnboardingState } from "@/types/models";
+import { Globe, Newspaper, FolderTree, Bookmark, Rss, ArrowRight, Sparkles, AlertTriangle } from "lucide-react";
+import { OnboardingWizard } from "@/components/shared/onboarding-wizard";
+import { Button } from "@/components/ui/button";
 
 export default function DashboardOverviewPage() {
   const [stats, setStats] = React.useState<DashboardStats | null>(null);
   const [recentArticles, setRecentArticles] = React.useState<Article[]>([]);
   const [activeReaderArticle, setActiveReaderArticle] = React.useState<Article | null>(null);
   const [quota, setQuota] = React.useState<QuotaUsage | null>(null);
+  const [onboardingState, setOnboardingState] = React.useState<OnboardingState | null>(null);
+  const [isOnboardingOpen, setIsOnboardingOpen] = React.useState(false);
+  const [isBannerDismissed, setIsBannerDismissed] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [reloadToken, setReloadToken] = React.useState(0);
@@ -30,10 +35,11 @@ export default function DashboardOverviewPage() {
 
     async function load() {
       try {
-        const [fetchedStats, articlesRes, fetchedQuota] = await Promise.all([
+        const [fetchedStats, articlesRes, fetchedQuota, fetchedOnboarding] = await Promise.all([
           dashboardApi.getStats(),
           articlesApi.list({ limit: 5 }).catch(() => ({ data: [] })),
           quotaApi.getQuota().catch(() => null),
+          onboardingApi.getState().catch(() => null),
         ]);
 
         if (!cancelled) {
@@ -41,6 +47,7 @@ export default function DashboardOverviewPage() {
           const items = articlesRes?.data || (Array.isArray(articlesRes) ? (articlesRes as unknown as Article[]) : []);
           setRecentArticles(items);
           if (fetchedQuota) setQuota(fetchedQuota);
+          if (fetchedOnboarding) setOnboardingState(fetchedOnboarding);
           setError(null);
         }
       } catch (err: unknown) {
@@ -113,6 +120,12 @@ export default function DashboardOverviewPage() {
     setReloadToken((prev) => prev + 1);
   };
 
+  const handleOnboardingCompleted = () => {
+    setIsOnboardingOpen(false);
+    setOnboardingState((prev) => (prev ? { ...prev, completed: true } : null));
+    setReloadToken((prev) => prev + 1);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -156,6 +169,78 @@ export default function DashboardOverviewPage() {
           onAddSource={handleAddSource}
         />
       </PageHeader>
+
+      {/* Onboarding Welcome Callout for New Users */}
+      {onboardingState && !onboardingState.completed && !isBannerDismissed && (
+        <div className="relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-background p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-primary/20 p-2.5 text-primary shrink-0 mt-0.5 sm:mt-0">
+                <Sparkles className="size-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  Welcome to RSSFusion Workspace
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-primary/20 text-primary">
+                    Quick Setup
+                  </span>
+                </h3>
+                <p className="text-xs text-muted-foreground max-w-xl">
+                  Get started in 30 seconds by choosing your intelligence beats (AI Agents, Engineering, or Tech Startups) to automatically seed verified feeds and keyword monitors.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setIsBannerDismissed(true)}
+              >
+                Dismiss
+              </Button>
+              <Button
+                size="sm"
+                className="text-xs gap-1.5 shadow-sm"
+                onClick={() => setIsOnboardingOpen(true)}
+              >
+                <span>Launch Setup Wizard</span>
+                <ArrowRight className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quota Limit Warning Banner */}
+      {quota && (quota.isAtLimit || quota.isNearLimit) && (
+        <div
+          className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-3.5 text-xs ${
+            quota.isAtLimit
+              ? "border-destructive/30 bg-destructive/10 text-destructive-foreground"
+              : "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle
+              className={`size-4 shrink-0 ${
+                quota.isAtLimit ? "text-destructive" : "text-amber-500"
+              }`}
+            />
+            <span>
+              {quota.isAtLimit
+                ? "You have reached your subscription plan limits for feed sources or keywords."
+                : "You are currently near your subscription quota limits (>=80% consumed)."}
+            </span>
+          </div>
+          <Link
+            href="/dashboard/settings"
+            className="font-medium underline underline-offset-4 hover:opacity-80 shrink-0"
+          >
+            Upgrade Plan & Limits &rarr;
+          </Link>
+        </div>
+      )}
 
       {/* 4 Stat Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -260,6 +345,13 @@ export default function DashboardOverviewPage() {
         onClose={() => setActiveReaderArticle(null)}
         onToggleSave={handleToggleSave}
         onToggleRead={handleToggleRead}
+      />
+
+      {/* Onboarding Wizard Modal */}
+      <OnboardingWizard
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        onCompleted={handleOnboardingCompleted}
       />
     </div>
   );
