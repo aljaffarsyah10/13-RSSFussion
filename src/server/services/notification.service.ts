@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface EmailNotificationRecord {
   id: string;
@@ -32,7 +33,9 @@ export async function queueKeywordNotification(params: {
   articleUrl: string;
   userEmail: string;
 }): Promise<void> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createAdminClient()
+    : await createServerSupabaseClient();
 
   // 1. Check if user enabled notifications in profile
   const { data: profile } = await supabase
@@ -71,7 +74,9 @@ export async function queueKeywordNotification(params: {
 }
 
 export async function processEmailNotification(notificationId: string): Promise<boolean> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createAdminClient()
+    : await createServerSupabaseClient();
   const resendApiKey = process.env.RESEND_API_KEY;
 
   const { data: notif, error } = await supabase

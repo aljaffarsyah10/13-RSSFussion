@@ -37,13 +37,12 @@ export function canonicalizeUrl(rawUrl: string): string {
     // 4. Strip hash fragment
     url.hash = "";
 
-    // 5. Remove trailing slash if path != "/"
-    let result = url.toString();
-    if (result.endsWith("/") && url.pathname !== "/") {
-      result = result.slice(0, -1);
+    // 5. Remove trailing slash on pathname if pathname != "/"
+    if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
+      url.pathname = url.pathname.slice(0, -1);
     }
 
-    return result;
+    return url.toString();
   } catch {
     return rawUrl.trim();
   }
